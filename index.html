@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ecodime — Aventures Bibliques</title>
 <meta name="theme-color" content="#0F2027">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ecodime">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABmJLR0QA/wD/AP+gvaeTAAAAUklEQVR42u3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBxAABHgf5MQAAAABJRU5ErkJggg==">
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -744,27 +749,48 @@ function askName(){
   const m=document.createElement("div");
   m.id="nameModal";
   m.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
-  m.innerHTML=`<div style="background:linear-gradient(160deg,#0F2027,#203A43);border:2px solid rgba(255,215,0,.3);border-radius:22px;padding:28px 20px;width:100%;max-width:360px;text-align:center;">
-    <img src="${document.querySelector('.header img')?.src||''}" style="width:140px;margin:0 auto 14px;display:block;">
-    <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#FFD700;margin-bottom:6px;">Bienvenue ! 🎉</div>
-    <div style="color:rgba(255,255,255,.6);font-size:.85rem;margin-bottom:18px;">Comment tu t'appelles ?</div>
-    <input id="nameInp" placeholder="Ton prénom..." style="width:100%;background:rgba(255,255,255,.1);border:2px solid rgba(255,215,0,.4);border-radius:12px;padding:13px 16px;color:#fff;font-size:1rem;outline:none;margin-bottom:8px;text-align:center;font-family:'Nunito',sans-serif;">
-    <input id="egliseInp" placeholder="Ton église (optionnel)..." style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:11px 16px;color:#fff;font-size:.9rem;outline:none;margin-bottom:14px;text-align:center;font-family:'Nunito',sans-serif;">
-    <button onclick="saveQuickProfile()" style="width:100%;background:linear-gradient(135deg,#FFD700,#FF7043);border:none;border-radius:13px;padding:14px;color:#fff;font-family:'Fredoka One',cursive;font-size:1.1rem;cursor:pointer;">🚀 C'est parti !</button>
+  const imgSrc = document.querySelector('.header img')?.src||'';
+  m.innerHTML=`<div style="background:linear-gradient(160deg,#0F2027,#203A43);border:2px solid rgba(255,215,0,.3);border-radius:22px;padding:24px 18px;width:100%;max-width:360px;overflow-y:auto;max-height:90vh;">
+    <img src="${imgSrc}" style="width:120px;margin:0 auto 10px;display:block;">
+    <div style="font-family:'Fredoka One',cursive;font-size:1.3rem;color:#FFD700;margin-bottom:4px;text-align:center;">Bienvenue ! 🎉</div>
+    <div style="color:rgba(255,255,255,.6);font-size:.8rem;margin-bottom:14px;text-align:center;">Remplis ton profil pour commencer</div>
+    <input id="nameInp" placeholder="Ton prénom *" style="width:100%;background:rgba(255,255,255,.1);border:2px solid rgba(255,215,0,.4);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:8px;font-family:'Nunito',sans-serif;">
+    <input id="nomInp" placeholder="Ton nom de famille *" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:8px;font-family:'Nunito',sans-serif;">
+    <select id="paysInp" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:8px;font-family:'Nunito',sans-serif;">
+      <option value="">-- Ton pays --</option>
+      <option>Tchad</option><option>Cameroun</option><option>Congo</option>
+      <option>RDC</option><option>Côte d'Ivoire</option><option>Sénégal</option>
+      <option>Mali</option><option>Burkina Faso</option><option>Niger</option>
+      <option>Bénin</option><option>Togo</option><option>Gabon</option>
+      <option>Centrafrique</option><option>Guinée</option><option>Madagascar</option>
+      <option>France</option><option>Belgique</option><option>Canada</option>
+      <option>Suisse</option><option>USA</option><option>Autre</option>
+    </select>
+    <input id="villeInp" placeholder="Ta ville" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:8px;font-family:'Nunito',sans-serif;">
+    <input id="egliseInp" placeholder="Ton église" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:12px;font-family:'Nunito',sans-serif;">
+    <button onclick="saveQuickProfile()" style="width:100%;background:linear-gradient(135deg,#FFD700,#FF7043);border:none;border-radius:12px;padding:13px;color:#fff;font-family:'Fredoka One',cursive;font-size:1.05rem;cursor:pointer;">🚀 C'est parti !</button>
   </div>`;
   document.body.appendChild(m);
   setTimeout(()=>document.getElementById("nameInp")&&document.getElementById("nameInp").focus(),300);
 }
 
 function saveQuickProfile(){
-  const prenom=(document.getElementById("nameInp")?.value||"").trim()||"Explorateur";
-  const eglise=(document.getElementById("egliseInp")?.value||"").trim()||"";
-  const u={prenom,nom:"",pays:"",ville:"",eglise,xp:0,coins:0,storiesDone:[],quizDone:0,registeredAt:new Date().toISOString(),lastActive:new Date().toISOString()};
+  const prenom=(document.getElementById("nameInp")?.value||"").trim();
+  if(!prenom){
+    document.getElementById("nameInp").style.borderColor="var(--red)";
+    document.getElementById("nameInp").placeholder="⚠️ Prénom obligatoire !";
+    return;
+  }
+  const nom=(document.getElementById("nomInp")?.value||"").trim();
+  const pays=(document.getElementById("paysInp")?.value||"").trim();
+  const ville=(document.getElementById("villeInp")?.value||"").trim();
+  const eglise=(document.getElementById("egliseInp")?.value||"").trim();
+  const u={prenom,nom,pays,ville,eglise,xp:0,coins:0,storiesDone:[],quizDone:0,registeredAt:new Date().toISOString(),lastActive:new Date().toISOString()};
   const users=getUsers();
   users.push(u);saveUsers(users);setCurrentUser(u);
   xp=0;coins=0;
-  document.getElementById("playerName").textContent=prenom;
-  document.getElementById("playerChurch").textContent=eglise?"⛪ "+eglise:"";
+  document.getElementById("playerName").textContent=prenom+(nom?" "+nom:"");
+  document.getElementById("playerChurch").textContent=(eglise?"⛪ "+eglise:"")+(ville?" · "+ville:"");
   document.getElementById("nameModal")?.remove();
   toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
 }
