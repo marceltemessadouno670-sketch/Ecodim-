@@ -11,6 +11,39 @@
 <meta name="apple-mobile-web-app-title" content="Ecodime">
 <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABmJLR0QA/wD/AP+gvaeTAAAAUklEQVR42u3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBxAABHgf5MQAAAABJRU5ErkJggg==">
 <link rel="manifest" href="manifest.json">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, get, update, push, onValue, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
+    authDomain: "ecodim-jmt.firebaseapp.com",
+    databaseURL: "https://ecodim-jmt-default-rtdb.firebaseio.com",
+    projectId: "ecodim-jmt",
+    storageBucket: "ecodim-jmt.firebasestorage.app",
+    messagingSenderId: "393215031510",
+    appId: "1:393215031510:web:71bf73b0fae054de8ff177"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getDatabase(fbApp);
+
+  // Exposer Firebase globalement
+  window.fbDB = db;
+  window.fbRef = (path) => ref(db, path);
+  window.fbSet = (path, val) => set(ref(db, path), val);
+  window.fbGet = (path) => get(ref(db, path)).then(s => s.exists() ? s.val() : null);
+  window.fbUpdate = (path, val) => update(ref(db, path), val);
+  window.fbPush = (path, val) => push(ref(db, path), val);
+  window.fbOn = (path, cb) => onValue(ref(db, path), s => cb(s.exists() ? s.val() : null));
+  window.fbOff = (path) => off(ref(db, path));
+
+  // Signaler que Firebase est prêt
+  window.firebaseReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+  console.log("✅ Firebase connecté");
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--gold:#FFD700;--orange:#FF7043;--sky:#4FC3F7;--sky-dark:#0288D1;--green:#66BB6A;--purple:#AB47BC;--pink:#EC407A;--red:#EF5350;}
@@ -611,6 +644,11 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
   </div>
 </div>
 
+<!-- CHALLENGE SCREEN -->
+<div id="challengeScreen" class="screen" style="background:#050810;padding-bottom:0;">
+  <iframe id="challengeFrame" src="challenge.html" style="width:100%;height:100vh;border:none;display:block;" allow="camera;microphone"></iframe>
+</div>
+
 <!-- BOTTOM NAV -->
 <div class="bnav" id="mainNav" style="display:none;">
   <div class="ni active" id="n0" onclick="goHome()"><div class="ni-ic">🏠</div><div class="ni-lb">Accueil</div></div>
@@ -618,6 +656,7 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
   <div class="ni" id="n2" onclick="goChat()"><div class="ni-ic">💬</div><div class="ni-lb">Raphaël</div></div>
   <div class="ni" id="n3" onclick="goCreator()"><div class="ni-ic">🎨</div><div class="ni-lb">Créateur</div></div>
   <div class="ni" id="n4" onclick="goMemory()"><div class="ni-ic">🃏</div><div class="ni-lb">Mémoire</div></div>
+  <div class="ni" id="n5" onclick="goChallenge()"><div class="ni-ic">⚔️</div><div class="ni-lb">Challenge</div></div>
 </div>
 <script>
 // GO TO REGISTER
@@ -644,17 +683,38 @@ function handleLogoTap(){
   logoTimer=setTimeout(()=>logoTaps=0,3000);
 }
 
-// DB
-function getUsers(){try{return JSON.parse(localStorage.getItem("ecodime_users")||"[]");}catch{return[];}}
-function saveUsers(u){localStorage.setItem("ecodime_users",JSON.stringify(u));}
-function getCurrentUser(){try{return JSON.parse(localStorage.getItem("ecodime_current")||"null");}catch{return null;}}
-function setCurrentUser(u){localStorage.setItem("ecodime_current",JSON.stringify(u));}
+// ══ AUTH SÉCURISÉE VIA SERVEUR ══
+let _currentUser = null;
+
+function getCurrentUser(){ return _currentUser; }
+function setCurrentUser(u){ _currentUser = u; }
 function updateCurrentUser(updates){
-  const u=getCurrentUser();if(!u)return;
-  Object.assign(u,updates);setCurrentUser(u);
-  const users=getUsers();
-  const idx=users.findIndex(x=>x.prenom===u.prenom&&x.nom===u.nom);
-  if(idx>=0){users[idx]=u;saveUsers(users);}
+  if(!_currentUser)return;
+  Object.assign(_currentUser,updates);
+  // Sauvegarder progression sur le serveur
+  fetch('/api/progress',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(updates)
+  }).catch(()=>{});
+}
+
+// Vérifier session au démarrage
+async function checkSession(){
+  try{
+    const r=await fetch('/api/me');
+    const d=await r.json();
+    if(d.loggedIn && d.user){
+      _currentUser=d.user;
+      xp=d.user.xp||0;coins=d.user.coins||0;
+      initHomeProfile();
+      document.getElementById("mainNav").style.display="flex";
+      showScreen("homeScreen",0);
+      renderStories();
+      return true;
+    }
+  }catch(e){}
+  return false;
 }
 
 // STATE
@@ -664,8 +724,19 @@ function addReward(x,c){
   document.getElementById("xpLbl").textContent=xp+" XP";
   document.getElementById("xpFill").style.width=Math.min(100,(xp/2000)*100)+"%";
   document.getElementById("coinCount").textContent=coins;
-  updateCurrentUser({xp,coins,lastActive:new Date().toISOString()});
-  logActivity("a gagné +"+x+" XP",x);
+  // Sauvegarder sur serveur ET Firebase
+  if(_currentUser){
+    fetch('/api/progress',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({xp,coins})
+    }).catch(()=>{});
+    syncProgressFirebase();
+  }
+}
+
+function logActivity(action,xpGain){
+  // Log géré côté serveur automatiquement
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
@@ -692,6 +763,7 @@ function goQuiz(){startQuiz();showScreen("quizScreen",1);}
 function goChat(){showScreen("chatScreen",2);}
 function goCreator(){showScreen("creatorScreen",3);setTimeout(initCanvas,100);}
 function goMemory(){initMemory();showScreen("memoryScreen",4);}
+function goChallenge(){showScreen("challengeScreen",5);}
 function showLogin(){showScreen("loginScreen");}
 
 // AUTH
@@ -728,21 +800,16 @@ function initHomeProfile(){
   document.getElementById("xpFill").style.width=Math.min(100,(xp/2000)*100)+"%";
   document.getElementById("coinCount").textContent=coins;
 }
-window.addEventListener("DOMContentLoaded",()=>{
-  // Toujours montrer l'accueil directement
-  document.getElementById("mainNav").style.display="flex";
-  const u=getCurrentUser();
-  if(u){
-    xp=u.xp||0;coins=u.coins||0;initHomeProfile();
-  } else {
-    // Créer un profil invité temporaire
-    const guest={prenom:"Explorateur",nom:"",pays:"",ville:"",eglise:"",xp:0,coins:0,storiesDone:[],quizDone:0,registeredAt:new Date().toISOString(),lastActive:new Date().toISOString()};
-    setCurrentUser(guest);
-    // Montrer popup prénom après 1 seconde
-    setTimeout(askName, 1000);
+window.addEventListener("DOMContentLoaded",async()=>{
+  // Vérifier session serveur
+  const hasSession = await checkSession();
+  if(!hasSession){
+    // Pas de session - montrer popup inscription
+    showScreen("homeScreen",0);
+    document.getElementById("mainNav").style.display="flex";
+    renderStories();
+    setTimeout(askName, 800);
   }
-  showScreen("homeScreen",0);
-  renderStories();
 });
 
 function askName(){
@@ -774,7 +841,7 @@ function askName(){
   setTimeout(()=>document.getElementById("nameInp")&&document.getElementById("nameInp").focus(),300);
 }
 
-function saveQuickProfile(){
+async function saveQuickProfile(){
   const prenom=(document.getElementById("nameInp")?.value||"").trim();
   if(!prenom){
     document.getElementById("nameInp").style.borderColor="var(--red)";
@@ -785,14 +852,57 @@ function saveQuickProfile(){
   const pays=(document.getElementById("paysInp")?.value||"").trim();
   const ville=(document.getElementById("villeInp")?.value||"").trim();
   const eglise=(document.getElementById("egliseInp")?.value||"").trim();
-  const u={prenom,nom,pays,ville,eglise,xp:0,coins:0,storiesDone:[],quizDone:0,registeredAt:new Date().toISOString(),lastActive:new Date().toISOString()};
-  const users=getUsers();
-  users.push(u);saveUsers(users);setCurrentUser(u);
-  xp=0;coins=0;
-  document.getElementById("playerName").textContent=prenom+(nom?" "+nom:"");
-  document.getElementById("playerChurch").textContent=(eglise?"⛪ "+eglise:"")+(ville?" · "+ville:"");
-  document.getElementById("nameModal")?.remove();
-  toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
+  
+  try{
+    const r=await fetch('/api/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prenom,nom,pays,ville,eglise})
+    });
+    const d=await r.json();
+    if(!d.success){toast("❌ "+d.message);return;}
+    _currentUser=d.user;xp=0;coins=0;
+    initHomeProfile();
+    document.getElementById("mainNav").style.display="flex";
+    document.getElementById("nameModal")?.remove();
+    showScreen("homeScreen",0);renderStories();
+    toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
+    // Sauvegarder aussi sur Firebase
+    saveToFirebase(d.user);
+  }catch(e){
+    toast("❌ Erreur de connexion au serveur");
+  }
+}
+
+// Sauvegarder profil sur Firebase
+async function saveToFirebase(user){
+  if(!window.fbDB || !user) return;
+  try{
+    await window.fbSet("users/"+user.id, {
+      prenom: user.prenom,
+      nom: user.nom||"",
+      pays: user.pays||"",
+      ville: user.ville||"",
+      eglise: user.eglise||"",
+      xp: user.xp||0,
+      coins: user.coins||0,
+      storiesDone: user.storiesDone||[],
+      lastActive: new Date().toISOString(),
+      registeredAt: user.registeredAt||new Date().toISOString()
+    });
+  }catch(e){ console.log("Firebase save error:", e); }
+}
+
+// Sync progression Firebase
+async function syncProgressFirebase(){
+  if(!_currentUser || !window.fbDB) return;
+  try{
+    await window.fbUpdate("users/"+_currentUser.id, {
+      xp, coins,
+      storiesDone: _currentUser.storiesDone||[],
+      lastActive: new Date().toISOString()
+    });
+  }catch(e){}
 }
 
 // STORIES DATA
@@ -1014,8 +1124,18 @@ function nextStep(){
   const od=document.getElementById("pd"+curStep);if(od)od.className="pd done";
   curStep++;
   if(curStep>=curAdv.steps.length){
-    const u=getCurrentUser();
-    if(u){const done=u.storiesDone||[];if(!done.includes(curAdv.id)){done.push(curAdv.id);updateCurrentUser({storiesDone:done});}}
+    if(_currentUser){
+      const done=_currentUser.storiesDone||[];
+      if(!done.includes(curAdv.id)){
+        done.push(curAdv.id);
+        _currentUser.storiesDone=done;
+        fetch('/api/progress',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({storiesDone:done,storyCompleted:curAdv.title,xp,coins})
+        }).catch(()=>{});
+      }
+    }
     addReward(200,50);toast("🏆 Histoire terminée ! +200 XP +50 🪙");
     logActivity("a terminé l'histoire : "+curAdv.title,200);
     document.getElementById("storyScene").style.background=GRAD_MAP[curAdv.color];
@@ -1235,42 +1355,34 @@ function readStory(){speak(document.getElementById("storyTxt").textContent,docum
 function readPrayer(){speak(document.getElementById("prayTxt").textContent+" "+document.getElementById("prayRef").textContent,document.getElementById("prayVbtn"));}
 function readVerse(){speak(document.getElementById("verseTxt").textContent+" "+document.getElementById("verseRef").textContent,document.getElementById("verseVbtn"));}
 
-// API KEY
-function getApiKey(){return localStorage.getItem("ecodime_api_key")||"";}
-function setApiKey(k){localStorage.setItem("ecodime_api_key",k.trim());}
-function showApiSetup(onSuccess){
-  const ex=document.getElementById("apiModal");if(ex)ex.remove();
-  const m=document.createElement("div");m.id="apiModal";
-  m.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;";
-  m.innerHTML=`<div style="background:linear-gradient(160deg,#1A1A3E,#2C2C5E);border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:24px 18px;width:100%;max-width:350px;">
-    <div style="text-align:center;font-size:2.2rem;margin-bottom:8px;">🔑</div>
-    <h3 style="font-family:'Fredoka One',cursive;color:var(--gold);text-align:center;font-size:1.15rem;margin-bottom:6px;">Clé API Anthropic</h3>
-    <p style="color:rgba(255,255,255,.45);font-size:.76rem;text-align:center;margin-bottom:13px;line-height:1.5;">Pour activer Raphaël et les fonctions IA<br>entre ta clé API Anthropic.</p>
-    <input id="apiKeyInput" type="password" placeholder="sk-ant-api03-..." style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 12px;color:#fff;font-size:.83rem;outline:none;margin-bottom:6px;font-family:monospace;">
-    <p style="color:rgba(255,255,255,.3);font-size:.66rem;margin-bottom:12px;">👉 console.anthropic.com → API Keys</p>
-    <button onclick="const k=document.getElementById('apiKeyInput').value.trim();if(!k.startsWith('sk-')){document.getElementById('apiKeyInput').style.borderColor='var(--red)';return;}setApiKey(k);document.getElementById('apiModal').remove();toast('✅ Clé API sauvegardée !');if(window._apiCb)window._apiCb();" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--orange));border:none;border-radius:11px;padding:12px;color:#fff;font-family:'Fredoka One',cursive;font-size:.95rem;cursor:pointer;margin-bottom:6px;">✅ Enregistrer</button>
-    <button onclick="document.getElementById('apiModal').remove();" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:10px;color:rgba(255,255,255,.45);font-family:'Fredoka One',cursive;font-size:.83rem;cursor:pointer;">Annuler</button>
-  </div>`;
-  window._apiCb=onSuccess||null;
-  document.body.appendChild(m);
-  setTimeout(()=>document.getElementById("apiKeyInput").focus(),100);
-}
+// ══ IA VIA SERVEUR SÉCURISÉ ══
 async function callAI(messages,system,onDone,onError){
   if(!navigator.onLine){
-    onDone("Je suis hors ligne 😅 Mais je peux te dire que Dieu t'aime ! Reconnecte-toi et entre une clé API pour qu'on discute ! 🌟");return;
+    onDone("Je suis hors ligne 😅 Les aventures et quiz fonctionnent sans internet ! 🌟");
+    return;
   }
-  let key=getApiKey();
-  if(!key){showApiSetup(()=>callAI(messages,system,onDone,onError));return;}
-  const body={model:"claude-sonnet-4-5",max_tokens:1024,messages};
-  if(system)body.system=system;
   try{
-    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify(body)});
-    if(r.status===401){localStorage.removeItem("ecodime_api_key");showApiSetup(()=>callAI(messages,system,onDone,onError));onError&&onError("Clé invalide");return;}
-    const data=await r.json();
-    onDone(data.content?.[0]?.text||"");
-  }catch(e){onError&&onError(e.message);}
+    const r=await fetch('/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages,system})
+    });
+    if(r.status===401){
+      onDone("Connecte-toi d'abord pour parler avec Raphaël ! 😊");
+      return;
+    }
+    if(r.status===503){
+      onDone("Je suis en cours de configuration. Reviens bientôt ! 😊");
+      return;
+    }
+    const d=await r.json();
+    if(d.error){onError&&onError(d.error);return;}
+    onDone(d.text||"");
+  }catch(e){
+    onDone("Erreur de connexion 😅 Vérifie ta connexion internet !");
+  }
 }
-function resetApiKey(){localStorage.removeItem("ecodime_api_key");showApiSetup(()=>toast("✅ Nouvelle clé enregistrée !"));}
+
 
 // CREATOR
 let canvas,ctx,drawing=false,drawColor="#FF7043",drawTool="draw";
@@ -1398,20 +1510,28 @@ async function generateVerse(){
 }
 
 // ADMIN
-const ADMIN_PWD="ecodime2024";
 let adminLogged=false;
-function adminLogin(){
+async function adminLogin(){
   const pwd=document.getElementById("adminPwd").value;
-  if(pwd===ADMIN_PWD){
-    adminLogged=true;
-    document.getElementById("adminLogin").style.display="none";
-    document.getElementById("adminPanel").style.display="block";
-    toast("🛡️ Bienvenue Jean Marcel !");loadAdminData();
-  }else{
-    toast("❌ Mot de passe incorrect !");
-    document.getElementById("adminPwd").style.borderColor="var(--red)";
-    setTimeout(()=>document.getElementById("adminPwd").style.borderColor="",1500);
-  }
+  try{
+    const r=await fetch('/api/admin/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:pwd})
+    });
+    const d=await r.json();
+    if(d.success){
+      adminLogged=true;
+      document.getElementById("adminLogin").style.display="none";
+      document.getElementById("adminPanel").style.display="block";
+      toast("🛡️ Bienvenue Jean Marcel !");
+      loadAdminData();
+    }else{
+      toast("❌ "+d.message);
+      document.getElementById("adminPwd").style.borderColor="var(--red)";
+      setTimeout(()=>document.getElementById("adminPwd").style.borderColor="",1500);
+    }
+  }catch(e){toast("❌ Erreur serveur");}
 }
 function adminLogout(){
   adminLogged=false;
@@ -1419,15 +1539,17 @@ function adminLogout(){
   document.getElementById("adminPanel").style.display="none";
   document.getElementById("adminPwd").value="";goHome();
 }
-function loadAdminData(){
-  const users=getUsers();
-  const logs=JSON.parse(localStorage.getItem("ecodime_logs")||"[]");
-  const stats=JSON.parse(localStorage.getItem("ecodime_stats")||"{}");
-  const countries=new Set(users.map(u=>u.pays)).size;
-  animateStat("aStat1",users.length);
-  animateStat("aStat2",users.reduce((acc,u)=>(u.storiesDone||[]).length+acc,0));
-  animateStat("aStat3",stats.quizDone||0);
-  animateStat("aStat4",countries);
+async function loadAdminData(){
+  try{
+    const r=await fetch('/api/admin/data');
+    if(r.status===401){toast("❌ Session expirée");adminLogout();return;}
+    const {stats,users:usersData,logs}=await r.json();
+    animateStat("aStat1",stats.totalUsers);
+    animateStat("aStat2",stats.storiesPlayed);
+    animateStat("aStat3",stats.quizDone);
+    animateStat("aStat4",stats.countries);
+    const users=usersData;
+    const logs2=logs;
   const tbody=document.getElementById("childrenTable");
   if(!users.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:rgba(255,255,255,.3);padding:16px;">Aucun enfant inscrit</td></tr>';}
   else{
@@ -1441,13 +1563,14 @@ function loadAdminData(){
     }).join("");
   }
   const logEl=document.getElementById("activityLog");
-  if(!logs.length){logEl.innerHTML='<div style="color:rgba(255,255,255,.28);font-size:.76rem;padding:12px 0;text-align:center;">Aucune activité</div>';}
+  if(!logs2||!logs2.length){logEl.innerHTML='<div style="color:rgba(255,255,255,.28);font-size:.76rem;padding:12px 0;text-align:center;">Aucune activité</div>';}
   else{
-    logEl.innerHTML=logs.slice(0,10).map(l=>{
+    logEl.innerHTML=logs2.slice(0,10).map(l=>{
       const ago=Math.round((Date.now()-new Date(l.time).getTime())/60000);
       return `<div class="alog-item"><div class="alog-ic" style="background:rgba(255,215,0,.1);">⭐</div><div class="alog-info"><div class="alog-name">${l.name} ${l.action}</div><div class="alog-time">Il y a ${ago<60?ago+" min":Math.round(ago/60)+"h"}</div></div><div class="alog-xp">+${l.xp} XP</div></div>`;
     }).join("");
   }
+  }catch(e){console.error(e);toast("❌ Erreur chargement");}
 }
 function showChildProfile(idx){
   const u=getUsers()[idx];if(!u)return;
