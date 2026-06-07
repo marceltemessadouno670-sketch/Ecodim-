@@ -674,9 +674,9 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
   </div>
 </div>
 
-<!-- CHALLENGE SCREEN -->
-<div id="challengeScreen" class="screen" style="background:#050810;padding-bottom:0;">
-  <iframe id="challengeFrame" src="challenge.html" style="width:100%;height:100vh;border:none;display:block;" allow="camera;microphone"></iframe>
+<!-- CHALLENGE SCREEN - Intégré -->
+<div id="challengeScreen" class="screen" style="background:#050810;padding-bottom:0;overflow-y:auto;">
+  <div id="challenge-root"></div>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -1240,5 +1240,1798 @@ function updateOnline(){
 window.addEventListener("online",updateOnline);
 window.addEventListener("offline",updateOnline);
 </script>
+
+<script type="module">
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, set, update, push, onValue, off, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const _cfg = {
+  apiKey:"AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
+  authDomain:"ecodim-jmt.firebaseapp.com",
+  databaseURL:"https://ecodim-jmt-default-rtdb.firebaseio.com",
+  projectId:"ecodim-jmt",
+  storageBucket:"ecodim-jmt.firebasestorage.app",
+  messagingSenderId:"393215031510",
+  appId:"1:393215031510:web:71bf73b0fae054de8ff177"
+};
+const _fbApp = getApps().find(a=>a.name==="challenge") || initializeApp(_cfg,"challenge");
+const _db = getDatabase(_fbApp);
+
+document.getElementById('challenge-root').innerHTML = `
+<div class="bg"></div>
+<div id="app" class="z1"></div>
+<div class="toast-el" id="toast"></div>
+<div class="cnotif" id="cnotif">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="font-size:32px" class="pulse">⚔️</div>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:15px" id="cnotif-name"></div>
+      <div style="font-size:13px;color:#8090b8" id="cnotif-info"></div>
+    </div>
+  </div>
+  <div class="row2 mt8">
+    <button class="btn bgreen bsm" onclick="acceptChallenge()">✅ Accepter</button>
+    <button class="btn bred bsm" onclick="declineChallenge()">❌ Refuser</button>
+  </div>
+</div>
+<div class="cdown" id="cdown">
+  <div style="font-size:14px;color:#8090b8;letter-spacing:3px;text-transform:uppercase;font-family:'Barlow Condensed'" id="cd-lbl"></div>
+  <div class="cnum" id="cd-num">3</div>
+  <div style="display:flex;gap:24px;align-items:center;font-family:'Barlow Condensed';font-size:20px;font-weight:700">
+    <span id="cd-p1" style="color:#2979ff"></span>
+    <span style="color:#f0a500;font-size:14px">VS</span>
+    <span id="cd-p2" style="color:#00e676"></span>
+  </div>
+  <div style="font-size:13px;color:#556080">⚡ Questions de niveau expert</div>
+</div>
+
+<script type="module">
+// ── Firebase ──────────────────────────────────────────────
+import { initializeApp }                           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, set, update, push, onValue, off, runTransaction }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const FB = {
+  apiKey:"AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
+  authDomain:"ecodim-jmt.firebaseapp.com",
+  databaseURL:"https://ecodim-jmt-default-rtdb.firebaseio.com",
+  projectId:"ecodim-jmt",
+  storageBucket:"ecodim-jmt.firebasestorage.app",
+  messagingSenderId:"393215031510",
+  appId:"1:393215031510:web:71bf73b0fae054de8ff177"
+};
+const app = initializeApp(FB);
+const db  = getDatabase(app);
+const r   = p => ref(db, p);
+const dbGet  = p => get(r(p)).then(s => s.exists() ? s.val() : null);
+const dbSet  = (p,v) => set(r(p), v);
+const dbUpd  = (p,v) => update(r(p), v);
+const dbPush = (p,v) => push(r(p), v);
+const dbOn   = (p,cb) => onValue(r(p), s => cb(s.exists() ? s.val() : null));
+const dbOff  = p => off(r(p));
+const dbTx   = (p,fn) => runTransaction(r(p), fn);
+
+// ── Constants ─────────────────────────────────────────────
+const LEVELS=[
+  {name:"Débutant",min:0,icon:"📖",color:"#8090b8"},
+  {name:"Disciple",min:50,icon:"✝️",color:"#2979ff"},
+  {name:"Évangéliste",min:150,icon:"🕊️",color:"#d500f9"},
+  {name:"Ancien",min:300,icon:"⭐",color:"#f0a500"},
+  {name:"Maître Biblique",min:500,icon:"👑",color:"#ff1744"},
+];
+const getLevel=pts=>{for(let i=LEVELS.length-1;i>=0;i--)if(pts>=LEVELS[i].min)return LEVELS[i];return LEVELS[0]};
+const MEDALS=["🥇","🥈","🥉"];
+const rndQ=()=>3+Math.floor(Math.random()*4);
+
+// ── State ─────────────────────────────────────────────────
+let USER=null, MATCH=null, PENDING=null, HISTORY=[], CD_TIMER=null;
+
+// ── Fallback questions ────────────────────────────────────
+const FALLBACK=[
+  {question:"Combien de prophètes de Baal Élie fit-il tuer au torrent de Kison ?",reference:"1 Rois 18:40",answers:["200","450","700","100"],correct:1,explanation:"Élie fit tuer les 450 prophètes de Baal.",topic:"Élie Carmel"},
+  {question:"Quel était le nom du père de Josué ?",reference:"Exode 33:11",answers:["Nun","Caleb","Aaron","Éphraïm"],correct:0,explanation:"Josué est 'fils de Nun' dans toute la Bible.",topic:"Josué père"},
+  {question:"Combien d'années Salomon régna-t-il ?",reference:"1 Rois 11:42",answers:["30","40","50","20"],correct:1,explanation:"Salomon régna quarante ans à Jérusalem.",topic:"Salomon règne"},
+  {question:"Quel roi fit brûler le rouleau de Jérémie ?",reference:"Jérémie 36:23",answers:["Ézéchias","Josias","Jojakim","Sédécias"],correct:2,explanation:"Jojakim coupa et brûla le rouleau.",topic:"Jojakim rouleau"},
+  {question:"À quel âge Josias devint-il roi ?",reference:"2 Rois 22:1",answers:["8 ans","12 ans","16 ans","20 ans"],correct:0,explanation:"Josias avait huit ans quand il devint roi.",topic:"Josias âge"},
+  {question:"Combien de fois Paul fut-il fouetté de 39 coups ?",reference:"2 Cor 11:24",answers:["3 fois","5 fois","7 fois","2 fois"],correct:1,explanation:"Paul reçut cinq fois les 39 coups.",topic:"Paul souffrances"},
+  {question:"Combien de jours Lazare était-il dans le tombeau ?",reference:"Jean 11:39",answers:["2","3","4","7"],correct:2,explanation:"Lazare était dans le tombeau depuis quatre jours.",topic:"Lazare tombeau"},
+  {question:"Combien d'années Mathusalem vécut-il ?",reference:"Genèse 5:27",answers:["900","950","969","999"],correct:2,explanation:"Mathusalem vécut 969 ans.",topic:"Mathusalem âge"},
+  {question:"Quel arbre Zachée monta-t-il pour voir Jésus ?",reference:"Luc 19:4",answers:["Figuier","Sycomore","Olivier","Cèdre"],correct:1,explanation:"Zachée monta dans un sycomore.",topic:"Zachée sycomore"},
+  {question:"Quel métier exerçaient Aquilas et Priscille ?",reference:"Actes 18:3",answers:["Pêcheurs","Fabricants de tentes","Marchands","Tisserands"],correct:1,explanation:"Ils fabriquaient des tentes comme Paul.",topic:"Aquilas métier"},
+  {question:"Combien de soldats gardaient Pierre en prison ?",reference:"Actes 12:4",answers:["4","8","16","32"],correct:2,explanation:"Quatre escouades de 4 soldats = 16 au total.",topic:"Pierre prison"},
+  {question:"Dans quelle ville Lydie fut-elle baptisée ?",reference:"Actes 16:14",answers:["Corinthe","Thessalonique","Philippes","Éphèse"],correct:2,explanation:"Lydie fut baptisée à Philippes.",topic:"Lydie Philippes"},
+  {question:"Combien de villes de refuge furent désignées ?",reference:"Nombres 35:6",answers:["3","6","9","12"],correct:1,explanation:"Six villes de refuge.",topic:"villes refuge"},
+  {question:"Quel nom Dieu donna-t-il à Jacob ?",reference:"Genèse 32:28",answers:["Israël","Édom","Esaü","Moab"],correct:0,explanation:"Dieu changea le nom de Jacob en Israël.",topic:"Jacob Israël"},
+  {question:"Combien de pains lors de la multiplication pour 4000 ?",reference:"Marc 8:5",answers:["5","7","10","12"],correct:1,explanation:"Les disciples avaient sept pains.",topic:"multiplication 4000"},
+  {question:"Combien d'hommes choisit Dieu pour Gédéon ?",reference:"Juges 7:7",answers:["100","300","1000","3000"],correct:1,explanation:"Dieu choisit 300 hommes pour Gédéon.",topic:"Gédéon 300"},
+];
+
+async function genQ(round, used=[]) {
+  const diffs=["difficile","très difficile","extrêmement difficile niveau expert"];
+  const sys=`Tu es arbitre Ecodim Bible Challenge. Génère UNE question biblique de niveau ${diffs[Math.min(round-1,2)]}.
+RÈGLES: détails précis, chiffres exacts, noms rares. JAMAIS basique. Évite: ${used.join(",")||"rien"}
+JSON uniquement sans markdown: {"question":"...","reference":"...","answers":["A","B","C","D"],"correct":0,"explanation":"...","topic":"3 mots"}`;
+  try {
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:700,system:sys,
+        messages:[{role:"user",content:"Génère."}]})
+    });
+    const d=await res.json();
+    const t=d.content?.map(b=>b.text||"").join("")||"";
+    return JSON.parse(t.replace(/```json|```/g,"").trim());
+  } catch {
+    return FALLBACK[(round*5+used.length)%FALLBACK.length];
+  }
+}
+
+// ── Image compress ────────────────────────────────────────
+function compressPhoto(file,size=180){
+  return new Promise(res=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");
+        const rat=Math.min(size/img.width,size/img.height);
+        c.width=img.width*rat; c.height=img.height*rat;
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        res(c.toDataURL("image/jpeg",.72));
+      };
+      img.src=e.target.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────
+const el=id=>document.getElementById(id);
+const h=html=>{const d=document.createElement("div");d.innerHTML=html;return d.firstChild};
+function toast(msg,color="#e8ecf8"){
+  const t=el("toast");
+  t.textContent=msg; t.style.color=color; t.style.borderColor=color+"66";
+  t.style.border="1px solid"; t.style.display="block";
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display="none",3200);
+}
+function av(photo,name,size,border,color){
+  if(photo) return `<div class="av" style="width:${size}px;height:${size}px;border-color:${border}"><img src="${photo}"/></div>`;
+  return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*.4}px;background:rgba(168,85,247,.15);border-color:${border};color:${color}">${(name||"?")[0].toUpperCase()}</div>`;
+}
+function render(html){ el("app").innerHTML=html; }
+
+// ── Boot ──────────────────────────────────────────────────
+showSplash();
+setTimeout(async()=>{
+  const saved=localStorage.getItem("ecodim_uid");
+  if(saved){
+    const data=await dbGet("users/"+saved);
+    if(data){ USER={uid:saved,...data}; await dbSet("users/"+saved+"/online",true); setupPresence(saved); goMain(); checkBonus(); return; }
+  }
+  showAuth("register");
+},2200);
+
+function checkBonus(){
+  const key="bonus_"+USER.uid, today=new Date().toDateString();
+  if(localStorage.getItem(key)!==today){
+    localStorage.setItem(key,today);
+    if(USER.points===0){ dbSet("users/"+USER.uid+"/points",5); USER.points=5; setTimeout(()=>toast("🎁 +5 points gratuits !","#f0a500"),1200); }
+  }
+}
+
+// ── SPLASH ────────────────────────────────────────────────
+function showSplash(){
+  render(`<div class="splash">
+    <div class="sglow">✝️</div>
+    <div class="slogo">ECO<span>DIM</span></div>
+    <div style="font-family:'Barlow Condensed';font-size:13px;letter-spacing:6px;text-transform:uppercase;color:#556080">Bible Challenge</div>
+    <div style="font-size:13px;color:#556080;line-height:1.7;max-width:280px;margin-top:4px;text-align:center">Défie d'autres joueurs en temps réel sur la connaissance de la Bible</div>
+    <div class="sbar"><div class="sfill"></div></div>
+    <div style="font-size:12px;color:#556080" class="pulse">Connexion...</div>
+  </div>`);
+}
+
+// ── AUTH ──────────────────────────────────────────────────
+function showAuth(mode="register"){
+  if(mode==="register"){
+    render(`<div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-family:'Cinzel Decorative';font-size:22px;color:#f0a500">ECO<span style="color:#fff">DIM</span></div>
+        <div style="font-size:13px;color:#556080;margin-top:6px">Bible Challenge</div>
+      </div>
+      <div class="card fadein">
+        <div style="font-weight:800;font-size:18px;margin-bottom:4px">Créer mon compte</div>
+        <div style="font-size:13px;color:#556080;margin-bottom:18px">🎁 Tu reçois <strong style="color:#f0a500">20 points</strong> de départ</div>
+        <div id="photo-wrap" class="photopick" style="width:80px;height:80px" onclick="el('photo-inp').click()">
+          <span style="font-size:28px">📷</span><span>Photo</span>
+        </div>
+        <input id="photo-inp" type="file" accept="image/*" style="display:none" onchange="handlePhoto(this)"/>
+        <div class="fld"><label class="lbl">Prénom & Nom *</label><input class="inp" id="reg-name" placeholder="Marcel Camara"/></div>
+        <div class="fld"><label class="lbl">Église</label><input class="inp" id="reg-church" placeholder="Assemblée de Dieu"/></div>
+        <div class="fld"><label class="lbl">Ville</label><input class="inp" id="reg-city" placeholder="Conakry"/></div>
+        <div class="fld"><label class="lbl">Code PIN 4 chiffres (pour te reconnecter)</label>
+          <input class="inp" id="reg-pin" type="number" placeholder="1234" maxlength="4"/></div>
+        <button class="btn bgold" onclick="doRegister()">Créer mon compte ✝️</button>
+        <div style="text-align:center;margin:14px 0;font-size:13px;color:#556080">— ou —</div>
+        <button class="btn bout" onclick="showAuth('login')">J'ai déjà un compte</button>
+      </div>
+    </div>`);
+  } else {
+    render(`<div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-family:'Cinzel Decorative';font-size:22px;color:#f0a500">ECO<span style="color:#fff">DIM</span></div>
+      </div>
+      <div class="card fadein">
+        <div style="font-weight:800;font-size:18px;margin-bottom:4px">Connexion</div>
+        <div style="font-size:13px;color:#556080;margin-bottom:18px">Entre ton prénom et ton code PIN</div>
+        <div class="fld"><label class="lbl">Prénom & Nom</label><input class="inp" id="login-name" placeholder="Marcel Camara"/></div>
+        <div class="fld"><label class="lbl">Code PIN</label><input class="inp" id="login-pin" type="number" placeholder="1234"/></div>
+        <button class="btn bgold" onclick="doLogin()">Se connecter</button>
+        <div style="text-align:center;margin:14px 0;font-size:13px;color:#556080">— ou —</div>
+        <button class="btn bout" onclick="showAuth('register')">Créer un compte</button>
+      </div>
+    </div>`);
+  }
+}
+
+window.el=el;
+window.showAuth=showAuth;
+let _regPhoto=null;
+window.handlePhoto=async function(inp){
+  const file=inp.files[0]; if(!file) return;
+  _regPhoto=await compressPhoto(file,180);
+  const w=el("photo-wrap");
+  w.innerHTML=`<img src="${_regPhoto}"/><div class="ov" style="position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;border-radius:50%;opacity:0;transition:opacity .2s"><span style="font-size:18px;color:#fff">✏️</span></div>`;
+};
+
+window.doRegister=async function(){
+  const name=el("reg-name")?.value.trim();
+  const church=el("reg-church")?.value.trim()||"Inconnue";
+  const city=el("reg-city")?.value.trim()||"Inconnue";
+  const pin=el("reg-pin")?.value.trim();
+  if(!name){toast("Entre ton prénom","#ff1744");return;}
+  if(!pin||pin.length<4){toast("Code PIN de 4 chiffres requis","#ff1744");return;}
+  const uid=Date.now()+"_"+name.replace(/\s+/g,"").toLowerCase().slice(0,10);
+  const data={name,church,city,photo:_regPhoto||null,pin,points:20,wins:0,losses:0,online:true,createdAt:Date.now()};
+  await dbSet("users/"+uid,data);
+  setupPresence(uid);
+  localStorage.setItem("ecodim_uid",uid);
+  USER={uid,...data}; _regPhoto=null;
+  goMain();
+  toast("Bienvenue "+name+" ! 🎉 +20 pts","#00e676");
+};
+
+window.doLogin=async function(){
+  const name=el("login-name")?.value.trim();
+  const pin=el("login-pin")?.value.trim();
+  if(!name||!pin){toast("Remplis tous les champs","#ff1744");return;}
+  const data=await dbGet("users");
+  if(!data){toast("Aucun joueur trouvé","#ff1744");return;}
+  const entry=Object.entries(data).find(([,d])=>d.name.toLowerCase()===name.toLowerCase()&&d.pin===pin);
+  if(!entry){toast("Pseudo ou PIN incorrect","#ff1744");return;}
+  const [uid,udata]=entry;
+  localStorage.setItem("ecodim_uid",uid);
+  await dbSet("users/"+uid+"/online",true);
+  // Marquer offline automatiquement si déconnecté
+  setupPresence(uid);
+  USER={uid,...udata};
+  goMain();
+  checkBonus();
+};
+
+// ── MAIN ──────────────────────────────────────────────────
+let _tab="lobby", _onlinePlayers=[];
+
+function goMain(){
+  _tab="lobby";
+  renderMain();
+  listenOnline();
+  listenChallenges();
+}
+
+function renderMain(){
+  const lvl=getLevel(USER.points);
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      <div class="hdr">
+        <div class="logo">ECO<span>DIM</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="text-align:right">
+            <div style="font-size:10px;color:#556080">${lvl.icon} ${lvl.name}</div>
+            <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${USER.points} pts</div>
+          </div>
+          ${av(USER.photo,USER.name,36,"#2979ff","#2979ff")}
+        </div>
+      </div>
+      <div class="page" id="tab-content" style="flex:1"></div>
+      <div class="bnav">
+        <button class="nb ${_tab==='lobby'?'on':''}" onclick="switchTab('lobby')"><span class="ic">⚔️</span>Lobby</button>
+        <button class="nb ${_tab==='leaderboard'?'on':''}" onclick="switchTab('leaderboard')"><span class="ic">🏆</span>Classement</button>
+        <button class="nb ${_tab==='profile'?'on':''}" onclick="switchTab('profile')"><span class="ic">👤</span>Profil</button>
+      </div>
+    </div>`;
+  renderTab();
+}
+
+window.switchTab=function(t){ _tab=t; renderMain(); };
+
+function renderTab(){
+  if(_tab==="lobby") renderLobby();
+  if(_tab==="leaderboard") renderLeader();
+  if(_tab==="profile") renderProfile();
+}
+
+// ── LOBBY ─────────────────────────────────────────────────
+let _selPlayer=null, _stake=5;
+
+function renderLobby(){
+  const lvl=getLevel(USER.points);
+  const rows=_onlinePlayers.length===0
+    ? `<div class="card" style="text-align:center;padding:24px;color:#556080">Aucun joueur en ligne 😔<br/><span style="font-size:12px;display:block;margin-top:4px">Partage l'app avec tes amis !</span></div>`
+    : _onlinePlayers.map(p=>{
+        const pl=getLevel(p.points);
+        return `<div class="prow" onclick="openChallModal('${p.uid}','${p.name.replace(/'/g,"\\'")}','${p.points}','${(p.church||"").replace(/'/g,"\\'")}','${(p.city||"").replace(/'/g,"\\'")}',${p.wins||0},${p.losses||0},'${p.photo||""}')">
+          <div class="odot"></div>
+          ${av(p.photo,p.name,44,"#d500f9","#d500f9")}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-size:11px;color:#556080">${p.church||""} · ${p.city||""}</div>
+            <div style="font-size:11px;margin-top:2px"><span style="color:#00e676">✓${p.wins||0}V</span> <span style="color:#556080">/</span> <span style="color:#ff1744">${p.losses||0}D</span></div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${p.points}</div>
+            <div style="font-size:10px;color:${pl.color}">${pl.name}</div>
+          </div>
+        </div>`;
+      }).join("");
+
+  el("tab-content").innerHTML=`<div class="fadein">
+    <div class="card cgold" style="margin-top:16px">
+      <div style="font-size:13px;color:#556080">Tes points</div>
+      <div class="pbig">${USER.points}</div>
+      <div style="font-size:13px;color:#556080;margin-top:4px">${lvl.icon} ${lvl.name}</div>
+    </div>
+    <div class="stitle">🟢 Joueurs en ligne</div>
+    ${rows}
+  </div>`;
+}
+
+window.openChallModal=function(uid,name,points,church,city,wins,losses,photo){
+  _selPlayer={uid,name,points:+points,church,city,wins:+wins,losses:+losses,photo:photo||null};
+  _stake=5;
+  const lvl=getLevel(+points);
+  const stakes=[3,5,10,15,20].map(v=>`
+    <button id="sk-${v}" onclick="setStake(${v})" style="padding:9px 16px;border-radius:9px;border:1px solid;cursor:pointer;
+      font-weight:700;font-size:15px;font-family:'Barlow Condensed';
+      background:${v===5?"#f0a500":"transparent"};color:${v===5?"#050810":"#8090b8"};
+      border-color:${v===5?"#f0a500":"#182038"}">${v}</button>`).join("");
+  document.body.insertAdjacentHTML("beforeend",`
+    <div class="mbg" id="chall-modal" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="margin-bottom:12px;display:flex;justify-content:center">${av(photo||null,name,60,"#d500f9","#d500f9")}</div>
+          <div style="font-weight:800;font-size:20px">${name}</div>
+          <div style="font-size:13px;color:#556080">${church} · ${city}</div>
+          <div style="font-family:'Cinzel Decorative';font-size:24px;color:#f0a500;margin-top:8px">${points} pts</div>
+          <div style="font-size:12px;color:${lvl.color}">${lvl.name}</div>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:13px;color:#556080;text-align:center;margin-bottom:12px">Combien de points miser ?</div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px">${stakes}</div>
+        <div id="stake-warn" style="text-align:center;color:#ff1744;font-size:12px;margin-bottom:12px;display:none">⚠️ Points insuffisants</div>
+        <button class="btn bgold" onclick="sendChall()">⚔️ Envoyer le défi — <span id="stake-lbl">5</span> pts</button>
+        <button class="btn bout mt8" onclick="closeModal()">Annuler</button>
+      </div>
+    </div>`);
+};
+window.setStake=function(v){
+  _stake=v;
+  document.querySelectorAll("[id^='sk-']").forEach(b=>{
+    const bv=+b.id.replace("sk-","");
+    b.style.background=bv===v?"#f0a500":"transparent";
+    b.style.color=bv===v?"#050810":"#8090b8";
+    b.style.borderColor=bv===v?"#f0a500":"#182038";
+  });
+  el("stake-lbl").textContent=v;
+  el("stake-warn").style.display=v>USER.points?"block":"none";
+};
+window.closeModal=function(){
+  const m=el("chall-modal"); if(m) m.remove();
+};
+window.sendChall=async function(){
+  if(_stake>USER.points){toast("Points insuffisants","#ff1744");return;}
+  await dbPush("challenges",{
+    from:USER.uid,fromName:USER.name,fromPhoto:USER.photo||null,fromPts:USER.points,
+    to:_selPlayer.uid,toName:_selPlayer.name,stake:_stake,status:"pending",createdAt:Date.now()
+  });
+  closeModal();
+  toast("Défi envoyé à "+_selPlayer.name+" ⚔️","#f0a500");
+};
+
+// ── Présence en ligne (onDisconnect) ──────────────────────
+function setupPresence(uid){
+  // Utiliser .info/connected de Firebase pour détecter déconnexion
+  const db = firebase.database();
+  const connRef = db.ref(".info/connected");
+  const userOnlineRef = db.ref("users/"+uid+"/online");
+  
+  connRef.on("value", snap => {
+    if(snap.val() === true){
+      // Quand connecté, marquer online
+      userOnlineRef.set(true);
+      // Quand déconnecté, marquer offline automatiquement
+      userOnlineRef.onDisconnect().set(false);
+    }
+  });
+  
+  // Aussi marquer offline si page fermée
+  window.addEventListener("beforeunload", ()=>{
+    userOnlineRef.set(false);
+  });
+  
+  window.addEventListener("pagehide", ()=>{
+    userOnlineRef.set(false);
+  });
+}
+
+// ── Modifier mes renseignements ────────────────────────────
+window.showEditProfile = function(){
+  const modal = document.createElement("div");
+  modal.id = "editModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  modal.innerHTML = `
+    <div style="background:#0d1526;border:1px solid #182038;border-radius:18px;padding:22px 18px;width:100%;max-width:360px;">
+      <div style="font-family:'Cinzel Decorative',cursive;color:#f0a500;font-size:1rem;margin-bottom:14px;text-align:center;">✏️ Modifier mon profil</div>
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Prénom & Nom</label>
+      <input id="editName" value="${USER.name||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Église</label>
+      <input id="editChurch" value="${USER.church||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Ville</label>
+      <input id="editCity" value="${USER.city||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Nouveau code PIN (optionnel)</label>
+      <input id="editPin" type="password" placeholder="Laisser vide pour garder l'ancien" maxlength="4" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:14px;">
+      
+      <button onclick="saveEditProfile()" style="width:100%;background:#f0a500;border:none;border-radius:10px;padding:12px;color:#050810;font-weight:800;font-size:.95rem;cursor:pointer;margin-bottom:8px;">💾 Sauvegarder</button>
+      <button onclick="document.getElementById('editModal').remove()" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:11px;color:#556080;font-size:.88rem;cursor:pointer;">Annuler</button>
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+window.saveEditProfile = async function(){
+  const name = document.getElementById("editName").value.trim();
+  const church = document.getElementById("editChurch").value.trim();
+  const city = document.getElementById("editCity").value.trim();
+  const newPin = document.getElementById("editPin").value.trim();
+  
+  if(!name){ alert("Le nom est obligatoire !"); return; }
+  
+  const updates = { name, church, city };
+  if(newPin && newPin.length === 4 && /^\d{4}$/.test(newPin)){
+    updates.pin = newPin;
+  }
+  
+  await dbSet("users/"+USER.uid+"/name", name);
+  await dbSet("users/"+USER.uid+"/church", church);
+  await dbSet("users/"+USER.uid+"/city", city);
+  if(updates.pin) await dbSet("users/"+USER.uid+"/pin", updates.pin);
+  
+  USER.name = name;
+  USER.church = church;
+  USER.city = city;
+  
+  document.getElementById("editModal").remove();
+  renderProfile();
+  toast("✅ Profil mis à jour !", "#00e676");
+};
+
+// ── Listen online ───────────────────────────────────────── ─────────────────────────────────────────
+function listenOnline(){
+  dbOn("users",data=>{
+    if(!data) return;
+    _onlinePlayers=Object.entries(data)
+      .filter(([uid,d])=>uid!==USER.uid&&d.online)
+      .map(([uid,d])=>({uid,...d}))
+      .sort((a,b)=>b.points-a.points);
+    if(_tab==="lobby") renderLobby();
+  });
+}
+
+// ── Listen challenges ─────────────────────────────────────
+function listenChallenges(){
+  dbOn("challenges",data=>{
+    if(!data) return;
+    Object.entries(data).forEach(([key,c])=>{
+      if(c.to===USER.uid&&c.status==="pending"&&(!PENDING||PENDING.key!==key)){
+        PENDING={...c,key};
+        el("cnotif-name").textContent=c.fromName;
+        el("cnotif-info").textContent="t'a défié · mise : "+c.stake+" pts";
+        el("cnotif").style.display="block";
+      }
+    });
+  });
+}
+
+window.acceptChallenge=async function(){
+  if(!PENDING) return;
+  await dbUpd("challenges/"+PENDING.key,{status:"accepted"});
+  const opp={uid:PENDING.from,name:PENDING.fromName,photo:PENDING.fromPhoto||null,points:PENDING.fromPts};
+  el("cnotif").style.display="none";
+  startMatch(opp,PENDING.stake,PENDING.key);
+  PENDING=null;
+};
+window.declineChallenge=async function(){
+  if(PENDING) await dbUpd("challenges/"+PENDING.key,{status:"declined"});
+  PENDING=null; el("cnotif").style.display="none";
+  toast("Défi refusé","#8090b8");
+};
+
+// ── LEADERBOARD ───────────────────────────────────────────
+async function renderLeader(){
+  el("tab-content").innerHTML=`<div style="text-align:center;padding:32px;color:#556080" class="pulse">Chargement...</div>`;
+  const data=await dbGet("users");
+  const list=data?Object.entries(data).map(([uid,d])=>({uid,...d})).sort((a,b)=>b.points-a.points):[];
+  el("tab-content").innerHTML=`<div class="fadein" style="padding-top:16px">
+    <div style="font-family:'Cinzel Decorative';font-size:18px;color:#f0a500;text-align:center;margin-bottom:4px">🏆 Classement</div>
+    <div style="font-size:13px;color:#556080;text-align:center;margin-bottom:14px">Meilleurs joueurs</div>
+    ${list.map((p,i)=>{
+      const isMe=p.uid===USER.uid, pl=getLevel(p.points);
+      return `<div class="rrow ${i<3?"r"+(i+1):"ro"}">
+        <div style="width:26px;text-align:center;font-size:${i<3?20:13}px;color:#556080;font-weight:700">${i<3?MEDALS[i]:"#"+(i+1)}</div>
+        ${av(p.photo,p.name,38,isMe?"#2979ff":"#d500f9",isMe?"#2979ff":"#d500f9")}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${isMe?" 👈":""}</div>
+          <div style="font-size:11px;color:#556080">${p.church||""} ${p.city?"· "+p.city:""}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${p.points}</div>
+          <div style="font-size:10px;color:${pl.color}">${pl.name}</div>
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+// ── PROFILE ───────────────────────────────────────────────
+function renderProfile(){
+  const lvl=getLevel(USER.points), nextLvl=LEVELS.find(l=>l.min>USER.points);
+  const total=(USER.wins||0)+(USER.losses||0), wr=total>0?Math.round(((USER.wins||0)/total)*100):0;
+  const prog=nextLvl?Math.min(((USER.points-lvl.min)/(nextLvl.min-lvl.min))*100,100):100;
+  const badges=[
+    (USER.wins||0)>=1?`<span class="bdg" style="background:rgba(0,230,118,.12);color:#00e676;border:1px solid rgba(0,230,118,.2)">🏅 Première victoire</span>`:"",
+    (USER.wins||0)>=5?`<span class="bdg" style="background:rgba(41,121,255,.12);color:#2979ff;border:1px solid rgba(41,121,255,.2)">⚡ Série ×5</span>`:"",
+    USER.points>=50?`<span class="bdg" style="background:rgba(240,165,0,.12);color:#f0a500;border:1px solid rgba(240,165,0,.2)">⭐ Disciple</span>`:"",
+    USER.points>=150?`<span class="bdg" style="background:rgba(213,0,249,.12);color:#d500f9;border:1px solid rgba(213,0,249,.2)">🕊️ Évangéliste</span>`:"",
+    USER.points>=300?`<span class="bdg" style="background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.2)">⭐ Ancien</span>`:"",
+    (USER.wins||0)===0?`<span class="bdg" style="background:rgba(86,96,128,.12);color:#556080;border:1px solid #182038">🔒 Lance ton premier défi !</span>`:"",
+  ].filter(Boolean).join("");
+  const histRows=HISTORY.length===0
+    ?`<div style="text-align:center;color:#556080;font-size:14px;padding:20px">Aucun match joué encore</div>`
+    :HISTORY.slice(0,10).map(h=>`<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px">
+        <div style="font-size:22px">${h.result==="win"?"🏆":h.result==="tie"?"🤝":"😔"}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">vs ${h.opponent}</div><div style="font-size:11px;color:#556080">${h.date}</div></div>
+        <div style="font-family:'Cinzel Decorative';font-size:14px;color:${h.result==="win"?"#00e676":h.result==="tie"?"#f0a500":"#ff1744"}">${h.result==="win"?"+":h.result==="tie"?"±":"-"}${h.stake} pts</div>
+      </div>`).join("");
+
+  el("tab-content").innerHTML=`<div class="fadein" style="padding-top:16px">
+    <div class="card cgold" style="text-align:center">
+      <div style="position:relative;width:80px;margin:0 auto 12px">
+        ${av(USER.photo,USER.name,80,"#2979ff","#2979ff")}
+        <button onclick="el('profile-photo-inp').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:#f0a500;border:2px solid #050810;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px">✏️</button>
+        <input id="profile-photo-inp" type="file" accept="image/*" style="display:none" onchange="changePhoto(this)"/>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <div style="font-weight:800;font-size:20px">${USER.name}</div>
+        <button onclick="showEditProfile()" style="background:rgba(41,121,255,.15);border:1px solid rgba(41,121,255,.3);border-radius:8px;padding:4px 9px;color:#2979ff;font-size:.72rem;cursor:pointer;">✏️ Modifier</button>
+      </div>
+      <div style="font-size:13px;color:#556080">${USER.church} · ${USER.city}</div>
+      <div class="pbig" style="margin:12px 0 6px">${USER.points}</div>
+      <span class="bdg" style="background:rgba(240,165,0,.12);color:#f0a500;border:1px solid rgba(240,165,0,.2)">${lvl.icon} ${lvl.name}</span>
+      ${nextLvl?`<div style="margin-top:14px">
+        <div style="font-size:11px;color:#556080;margin-bottom:6px">Vers ${nextLvl.name} (${nextLvl.min-USER.points} pts)</div>
+        <div style="background:#182038;border-radius:4px;height:6px;overflow:hidden"><div style="height:100%;border-radius:4px;background:#f0a500;width:${prog}%"></div></div>
+      </div>`:""}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      ${[[USER.wins||0,"Victoires","#00e676"],[USER.losses||0,"Défaites","#ff1744"],[wr+"%","Win rate","#2979ff"]].map(([v,l,c])=>`
+        <div class="card" style="text-align:center;padding:12px">
+          <div style="font-family:'Cinzel Decorative';font-size:22px;color:${c}">${v}</div>
+          <div style="font-size:11px;color:#556080;margin-top:3px">${l}</div>
+        </div>`).join("")}
+    </div>
+    <div class="stitle">🎖️ Badges</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${badges||"<span style='color:#556080;font-size:13px'>Lance ton premier match !</span>"}</div>
+    <div class="stitle">📜 Historique</div>
+    ${histRows}
+    <button class="btn bout mt16" onclick="doLogout()">🚪 Se déconnecter</button>
+  </div>`;
+}
+
+window.changePhoto=async function(inp){
+  const file=inp.files[0]; if(!file) return;
+  const b64=await compressPhoto(file,180);
+  await dbSet("users/"+USER.uid+"/photo",b64);
+  USER.photo=b64;
+  renderMain();
+  toast("Photo mise à jour ✅","#00e676");
+};
+
+window.doLogout=async function(){
+  await dbSet("users/"+USER.uid+"/online",false);
+  localStorage.removeItem("ecodim_uid");
+  USER=null; MATCH=null; PENDING=null;
+  dbOff("users"); dbOff("challenges");
+  showAuth("register");
+};
+
+// ══════════════════════════════════════════════════════════
+// MATCH
+// ══════════════════════════════════════════════════════════
+function startMatch(opp,stake,matchId){
+  MATCH={
+    id:matchId||"m_"+Date.now(), opponent:opp, stake,
+    round:1, qIndex:0, qCounts:[rndQ(),rndQ(),rndQ()],
+    myScore:0, oppScore:0, myRW:0, oppRW:0,
+    roundMyQ:0, roundOppQ:0, roundSummary:[],
+    usedTopics:[], currentQ:null, myAnswer:null, oppAnswer:null,
+  };
+  showCountdown();
+}
+
+function showCountdown(){
+  const cd=el("cdown");
+  cd.style.display="flex";
+  el("cd-lbl").textContent=`Manche ${MATCH.round}/3 · ${MATCH.qCounts[MATCH.round-1]} questions`;
+  el("cd-p1").textContent=USER.name.split(" ")[0];
+  el("cd-p2").textContent=MATCH.opponent.name.split(" ")[0];
+  let n=3;
+  const tick=()=>{
+    el("cd-num").textContent=n;
+    el("cd-num").style.animation="none";
+    void el("cd-num").offsetWidth;
+    el("cd-num").style.animation="countPop .4s ease";
+    if(n===0){ cd.style.display="none"; renderMatchQ(); return; }
+    n--; CD_TIMER=setTimeout(tick,1000);
+  };
+  tick();
+}
+
+function renderMatchHdr(){
+  const ms=MATCH;
+  const qNum=ms.qIndex+1, qTotal=ms.qCounts[ms.round-1];
+  const dots=(wins)=>[0,1,2].map(i=>`<div class="rdot ${i<wins?"on":""}"></div>`).join("");
+  return `<div style="background:rgba(5,8,16,.98);backdrop-filter:blur(16px);border-bottom:1px solid #182038;padding:10px 14px;flex-shrink:0">
+    <div class="msb">
+      <div class="mside">
+        <div class="mname" style="color:#2979ff">${USER.name.split(" ")[0]}</div>
+        <div class="mpts" style="color:#2979ff">${ms.myScore}</div>
+        <div class="rdots" style="color:#2979ff">${dots(ms.myRW)}</div>
+      </div>
+      <div class="vchip">M.${ms.round}/3<br/><span style="font-size:9px;color:#556080">Q${qNum}/${qTotal}</span></div>
+      <div class="mside">
+        <div class="mname" style="color:#00e676">${ms.opponent.name.split(" ")[0]}</div>
+        <div class="mpts" style="color:#00e676">${ms.oppScore}</div>
+        <div class="rdots" style="color:#00e676">${dots(ms.oppRW)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function renderMatchQ(){
+  const ms=MATCH;
+  const DIFFS=["Difficile","Très difficile","Niveau Expert"];
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      ${renderMatchHdr()}
+      <div style="flex:1;overflow-y:auto;padding:14px 14px 32px" id="q-area">
+        <div class="ldr">
+          <div class="lbook">📖</div>
+          <div style="font-size:13px;color:#556080" class="pulse">L'IA prépare une question ${DIFFS[ms.round-1].toLowerCase()}...</div>
+          <div class="lbar"><div class="lfill"></div></div>
+        </div>
+      </div>
+    </div>`;
+
+  ms.myAnswer=null; ms.oppAnswer=null;
+  const q=await genQ(ms.round, ms.usedTopics);
+  ms.currentQ=q;
+  if(q.topic) ms.usedTopics.push(q.topic);
+
+  // Push question to Firebase for online sync
+  if(ms.id && ms.id!=="demo") await dbSet(`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/question`,q);
+
+  showQuestion();
+  listenOppAnswer();
+}
+
+function showQuestion(){
+  const ms=MATCH, q=ms.currentQ;
+  const DIFFS=["Difficile","Très difficile","Niveau Expert"];
+  const revealed=ms.myAnswer!==null&&ms.oppAnswer!==null;
+  const myC=revealed&&ms.myAnswer===q.correct;
+  const oppC=revealed&&ms.oppAnswer===q.correct;
+
+  const ansHtml=q.answers.map((a,i)=>{
+    let cls="abtn";
+    if(revealed){
+      if(i===q.correct) cls="abtn ok";
+      else if(i===ms.myAnswer&&i!==q.correct) cls="abtn bad";
+      else cls="abtn rv";
+    }
+    const markers=revealed?`<span style="font-size:12px;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      ${i===ms.myAnswer?`<span>${myC&&i===q.correct?"✅":"❌"} Toi</span>`:""}
+      ${i===ms.oppAnswer?`<span>${oppC&&i===q.correct?"✅":"❌"} ${ms.opponent.name.split(" ")[0]}</span>`:""}
+    </span>`:"";
+    return `<button class="${cls}" onclick="submitAns(${i})" ${ms.myAnswer!==null?"disabled":""}>
+      <div class="altr">${["A","B","C","D"][i]}</div>
+      <span style="flex:1">${a}</span>${markers}
+    </button>`;
+  }).join("");
+
+  el("q-area").innerHTML=`<div class="fadein">
+    <div class="qlbl">Manche ${ms.round}/3 · Q<strong>${ms.qIndex+1}/${ms.qCounts[ms.round-1]}</strong> · ${DIFFS[ms.round-1]}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#0b1020;border:1px solid #182038;border-radius:12px;padding:8px 14px;margin-bottom:12px;font-size:13px">
+      <span style="color:#2979ff;font-weight:700">${USER.name.split(" ")[0]} : ${ms.roundMyQ}✓</span>
+      <span style="color:#556080;font-size:11px">cette manche</span>
+      <span style="color:#00e676;font-weight:700">${ms.roundOppQ}✓ : ${ms.opponent.name.split(" ")[0]}</span>
+    </div>
+    <div class="qbox">
+      <div class="qdiff">🔥 ${DIFFS[ms.round-1]}</div>
+      <div class="qref">${q.reference||""}</div>
+      <div class="qtxt">${q.question}</div>
+    </div>
+    ${ms.myAnswer!==null&&!revealed?`<div class="wait"><span>✅ Réponse envoyée — attente de ${ms.opponent.name.split(" ")[0]}</span><div class="dots"><span></span><span></span><span></span></div></div>`:""}
+    ${ansHtml}
+    ${revealed?`<div class="expl"><strong style="color:#f0a500">📖 Bonne réponse :</strong> ${q.answers[q.correct]}<br/><br/>${q.explanation||""}</div>`:""}
+  </div>`;
+}
+
+window.submitAns=async function(idx){
+  const ms=MATCH;
+  if(ms.myAnswer!==null) return;
+  ms.myAnswer=idx;
+  showQuestion();
+
+  // Push to Firebase
+  if(ms.id) await dbSet(`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/${USER.uid}`,idx);
+
+  // Simulate opponent if no real opponent synced
+  if(!ms._oppListening){
+    setTimeout(()=>{
+      ms.oppAnswer=Math.random()<0.38?ms.currentQ.correct:Math.floor(Math.random()*4);
+      showQuestion();
+      setTimeout(()=>revealAndNext(),2200);
+    },900+Math.random()*1800);
+  }
+};
+
+function listenOppAnswer(){
+  const ms=MATCH;
+  if(!ms.id) return;
+  ms._oppListening=true;
+  const path=`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/${ms.opponent.uid}`;
+  dbOn(path,val=>{
+    if(val!==null&&ms.oppAnswer===null){
+      ms.oppAnswer=val;
+      showQuestion();
+      if(ms.myAnswer!==null) setTimeout(()=>revealAndNext(),2200);
+    }
+  });
+}
+
+function revealAndNext(){
+  const ms=MATCH, q=ms.currentQ;
+  const myC=ms.myAnswer===q.correct, oppC=ms.oppAnswer===q.correct;
+  const qTotal=ms.qCounts[ms.round-1], isLast=ms.qIndex>=qTotal-1;
+
+  ms.myScore+=(myC?1:0); ms.oppScore+=(oppC?1:0);
+  ms.roundMyQ+=(myC?1:0); ms.roundOppQ+=(oppC?1:0);
+
+  // Update header
+  const hdr=document.querySelector(".msb")?.parentElement;
+  if(hdr) hdr.outerHTML=renderMatchHdr();
+
+  showQuestion(); // show revealed state
+
+  setTimeout(()=>{
+    if(isLast) finishRound();
+    else{
+      ms.qIndex++;
+      ms.currentQ=null; ms.myAnswer=null; ms.oppAnswer=null;
+      renderMatchQ();
+    }
+  },3600);
+}
+
+function finishRound(){
+  const ms=MATCH;
+  const myWon=ms.roundMyQ>ms.roundOppQ, oppWon=ms.roundOppQ>ms.roundMyQ;
+  if(myWon) ms.myRW++;
+  if(oppWon) ms.oppRW++;
+  ms.roundSummary.push({round:ms.round,myQ:ms.roundMyQ,oppQ:ms.roundOppQ,
+    total:ms.qCounts[ms.round-1],winner:myWon?"me":oppWon?"opp":"tie"});
+
+  const s=ms.roundSummary[ms.roundSummary.length-1];
+  const over=ms.round>=3||ms.myRW>=2||ms.oppRW>=2;
+
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      ${renderMatchHdr()}
+      <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px;text-align:center;flex:1">
+        <div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#556080">Résumé — Manche ${s.round}</div>
+        <div style="font-size:15px;font-weight:700;color:${s.winner==="me"?"#00e676":s.winner==="opp"?"#ff1744":"#f0a500"}">
+          ${s.winner==="me"?`✅ ${USER.name.split(" ")[0]} remporte la manche !`
+            :s.winner==="opp"?`✅ ${ms.opponent.name.split(" ")[0]} remporte la manche !`
+            :"🤝 Manche à égalité"}
+        </div>
+        <div class="card" style="width:100%">
+          <div style="display:flex;justify-content:space-around;align-items:center">
+            <div style="text-align:center">
+              <div style="font-size:12px;color:#2979ff;margin-bottom:4px">${USER.name.split(" ")[0]}</div>
+              <div style="font-family:'Cinzel Decorative';font-size:40px;color:#2979ff">${s.myQ}</div>
+              <div style="font-size:11px;color:#556080">/ ${s.total}</div>
+            </div>
+            <div style="font-family:'Cinzel Decorative';font-size:18px;color:#f0a500">VS</div>
+            <div style="text-align:center">
+              <div style="font-size:12px;color:#00e676;margin-bottom:4px">${ms.opponent.name.split(" ")[0]}</div>
+              <div style="font-family:'Cinzel Decorative';font-size:40px;color:#00e676">${s.oppQ}</div>
+              <div style="font-size:11px;color:#556080">/ ${s.total}</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;font-family:'Barlow Condensed';font-size:16px;font-weight:700">
+          <span style="color:#2979ff">${ms.myRW} manche${ms.myRW>1?"s":""}</span>
+          <span style="color:#556080">—</span>
+          <span style="color:#00e676">${ms.oppRW} manche${ms.oppRW>1?"s":""}</span>
+        </div>
+        <div style="font-size:13px;color:#556080" class="pulse">${over?"Fin du match...":"Manche "+(ms.round+1)+" dans quelques secondes..."}</div>
+      </div>
+    </div>`;
+
+  setTimeout(()=>{
+    if(over) showResult();
+    else{
+      ms.round++; ms.qIndex=0; ms.roundMyQ=0; ms.roundOppQ=0;
+      ms.currentQ=null; ms.myAnswer=null; ms.oppAnswer=null;
+      showCountdown();
+    }
+  },over?5000:4500);
+}
+
+async function showResult(){
+  const ms=MATCH;
+  const won=ms.myRW>ms.oppRW, tied=ms.myRW===ms.oppRW;
+
+  if(!tied){
+    const np=Math.max(0,USER.points+(won?ms.stake:-ms.stake));
+    USER.points=np;
+    await dbSet("users/"+USER.uid+"/points",np);
+    await dbTx("users/"+USER.uid+"/"+(won?"wins":"losses"),v=>(v||0)+1);
+    if(won) USER.wins=(USER.wins||0)+1; else USER.losses=(USER.losses||0)+1;
+    if(ms.id) await dbUpd("challenges/"+ms.id,{status:"done"});
+  }
+
+  HISTORY.unshift({id:Date.now(),opponent:ms.opponent.name,
+    result:tied?"tie":won?"win":"loss",stake:ms.stake,
+    date:new Date().toLocaleDateString("fr-FR")});
+
+  const rows=ms.roundSummary.map(s=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-top:1px solid #182038">
+      <span style="font-size:13px;color:#556080">Manche ${s.round}</span>
+      <span style="font-weight:700;color:#2979ff">${s.myQ}/${s.total}</span>
+      <span style="font-weight:700;color:#00e676">${s.oppQ}/${s.total}</span>
+      <span style="font-size:16px">${s.winner==="me"?"🔵":s.winner==="opp"?"🟢":"🤝"}</span>
+    </div>`).join("");
+
+  el("app").innerHTML=`
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;text-align:center">
+      <div style="font-size:80px;animation:bounceIn .5s ease">${tied?"🤝":won?"🏆":"😔"}</div>
+      <div style="font-family:'Cinzel Decorative';font-size:26px;color:${tied?"#f0a500":won?"#00e676":"#ff1744"}">
+        ${tied?"Égalité !":won?USER.name.split(" ")[0]+" gagne !":ms.opponent.name.split(" ")[0]+" gagne !"}
+      </div>
+      <div style="font-size:14px;color:#556080">
+        ${tied?"Aucun point échangé":won?`+${ms.stake} points remportés 🎉`:`-${ms.stake} points perdus`}
+      </div>
+      <div class="card" style="width:100%">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#556080;margin-bottom:8px;padding:0 4px">
+          <span>Manche</span><span style="color:#2979ff">${USER.name.split(" ")[0]}</span>
+          <span style="color:#00e676">${ms.opponent.name.split(" ")[0]}</span><span>Résultat</span>
+        </div>
+        ${rows}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-top:1px solid #182038">
+          <span style="font-weight:700;font-size:13px">Total</span>
+          <span style="font-family:'Cinzel Decorative';font-size:18px;color:#2979ff">${ms.myScore}</span>
+          <span style="font-family:'Cinzel Decorative';font-size:18px;color:#00e676">${ms.oppScore}</span>
+          <span style="font-size:16px">${won?"🏆":"😔"}</span>
+        </div>
+      </div>
+      <button class="btn bgold" onclick="goMain()">🏠 Retour au Lobby</button>
+    </div>`;
+
+  toast(tied?"🤝 Égalité !":won?`🏆 +${ms.stake} pts !`:`😔 -${ms.stake} pts`,
+    tied?"#f0a500":won?"#00e676":"#ff1744");
+  MATCH=null;
+}
+
+window.goMain=goMain;
+window.startMatch=startMatch;
+</script>
+`;
+
+
+// ── Firebase ──────────────────────────────────────────────
+import { getDatabase, ref, get, set, update, push, onValue, off, runTransaction }
+
+const FB = {
+  apiKey:"AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
+  authDomain:"ecodim-jmt.firebaseapp.com",
+  databaseURL:"https://ecodim-jmt-default-rtdb.firebaseio.com",
+  projectId:"ecodim-jmt",
+  storageBucket:"ecodim-jmt.firebasestorage.app",
+  messagingSenderId:"393215031510",
+  appId:"1:393215031510:web:71bf73b0fae054de8ff177"
+};
+const app = initializeApp(FB);
+const db  = getDatabase(app);
+const r   = p => ref(db, p);
+const dbGet  = p => get(r(p)).then(s => s.exists() ? s.val() : null);
+const dbSet  = (p,v) => set(r(p), v);
+const dbUpd  = (p,v) => update(r(p), v);
+const dbPush = (p,v) => push(r(p), v);
+const dbOn   = (p,cb) => onValue(r(p), s => cb(s.exists() ? s.val() : null));
+const dbOff  = p => off(r(p));
+const dbTx   = (p,fn) => runTransaction(r(p), fn);
+
+// ── Constants ─────────────────────────────────────────────
+const LEVELS=[
+  {name:"Débutant",min:0,icon:"📖",color:"#8090b8"},
+  {name:"Disciple",min:50,icon:"✝️",color:"#2979ff"},
+  {name:"Évangéliste",min:150,icon:"🕊️",color:"#d500f9"},
+  {name:"Ancien",min:300,icon:"⭐",color:"#f0a500"},
+  {name:"Maître Biblique",min:500,icon:"👑",color:"#ff1744"},
+];
+const getLevel=pts=>{for(let i=LEVELS.length-1;i>=0;i--)if(pts>=LEVELS[i].min)return LEVELS[i];return LEVELS[0]};
+const MEDALS=["🥇","🥈","🥉"];
+const rndQ=()=>3+Math.floor(Math.random()*4);
+
+// ── State ─────────────────────────────────────────────────
+let USER=null, MATCH=null, PENDING=null, HISTORY=[], CD_TIMER=null;
+
+// ── Fallback questions ────────────────────────────────────
+const FALLBACK=[
+  {question:"Combien de prophètes de Baal Élie fit-il tuer au torrent de Kison ?",reference:"1 Rois 18:40",answers:["200","450","700","100"],correct:1,explanation:"Élie fit tuer les 450 prophètes de Baal.",topic:"Élie Carmel"},
+  {question:"Quel était le nom du père de Josué ?",reference:"Exode 33:11",answers:["Nun","Caleb","Aaron","Éphraïm"],correct:0,explanation:"Josué est 'fils de Nun' dans toute la Bible.",topic:"Josué père"},
+  {question:"Combien d'années Salomon régna-t-il ?",reference:"1 Rois 11:42",answers:["30","40","50","20"],correct:1,explanation:"Salomon régna quarante ans à Jérusalem.",topic:"Salomon règne"},
+  {question:"Quel roi fit brûler le rouleau de Jérémie ?",reference:"Jérémie 36:23",answers:["Ézéchias","Josias","Jojakim","Sédécias"],correct:2,explanation:"Jojakim coupa et brûla le rouleau.",topic:"Jojakim rouleau"},
+  {question:"À quel âge Josias devint-il roi ?",reference:"2 Rois 22:1",answers:["8 ans","12 ans","16 ans","20 ans"],correct:0,explanation:"Josias avait huit ans quand il devint roi.",topic:"Josias âge"},
+  {question:"Combien de fois Paul fut-il fouetté de 39 coups ?",reference:"2 Cor 11:24",answers:["3 fois","5 fois","7 fois","2 fois"],correct:1,explanation:"Paul reçut cinq fois les 39 coups.",topic:"Paul souffrances"},
+  {question:"Combien de jours Lazare était-il dans le tombeau ?",reference:"Jean 11:39",answers:["2","3","4","7"],correct:2,explanation:"Lazare était dans le tombeau depuis quatre jours.",topic:"Lazare tombeau"},
+  {question:"Combien d'années Mathusalem vécut-il ?",reference:"Genèse 5:27",answers:["900","950","969","999"],correct:2,explanation:"Mathusalem vécut 969 ans.",topic:"Mathusalem âge"},
+  {question:"Quel arbre Zachée monta-t-il pour voir Jésus ?",reference:"Luc 19:4",answers:["Figuier","Sycomore","Olivier","Cèdre"],correct:1,explanation:"Zachée monta dans un sycomore.",topic:"Zachée sycomore"},
+  {question:"Quel métier exerçaient Aquilas et Priscille ?",reference:"Actes 18:3",answers:["Pêcheurs","Fabricants de tentes","Marchands","Tisserands"],correct:1,explanation:"Ils fabriquaient des tentes comme Paul.",topic:"Aquilas métier"},
+  {question:"Combien de soldats gardaient Pierre en prison ?",reference:"Actes 12:4",answers:["4","8","16","32"],correct:2,explanation:"Quatre escouades de 4 soldats = 16 au total.",topic:"Pierre prison"},
+  {question:"Dans quelle ville Lydie fut-elle baptisée ?",reference:"Actes 16:14",answers:["Corinthe","Thessalonique","Philippes","Éphèse"],correct:2,explanation:"Lydie fut baptisée à Philippes.",topic:"Lydie Philippes"},
+  {question:"Combien de villes de refuge furent désignées ?",reference:"Nombres 35:6",answers:["3","6","9","12"],correct:1,explanation:"Six villes de refuge.",topic:"villes refuge"},
+  {question:"Quel nom Dieu donna-t-il à Jacob ?",reference:"Genèse 32:28",answers:["Israël","Édom","Esaü","Moab"],correct:0,explanation:"Dieu changea le nom de Jacob en Israël.",topic:"Jacob Israël"},
+  {question:"Combien de pains lors de la multiplication pour 4000 ?",reference:"Marc 8:5",answers:["5","7","10","12"],correct:1,explanation:"Les disciples avaient sept pains.",topic:"multiplication 4000"},
+  {question:"Combien d'hommes choisit Dieu pour Gédéon ?",reference:"Juges 7:7",answers:["100","300","1000","3000"],correct:1,explanation:"Dieu choisit 300 hommes pour Gédéon.",topic:"Gédéon 300"},
+];
+
+async function genQ(round, used=[]) {
+  const diffs=["difficile","très difficile","extrêmement difficile niveau expert"];
+  const sys=`Tu es arbitre Ecodim Bible Challenge. Génère UNE question biblique de niveau ${diffs[Math.min(round-1,2)]}.
+RÈGLES: détails précis, chiffres exacts, noms rares. JAMAIS basique. Évite: ${used.join(",")||"rien"}
+JSON uniquement sans markdown: {"question":"...","reference":"...","answers":["A","B","C","D"],"correct":0,"explanation":"...","topic":"3 mots"}`;
+  try {
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:700,system:sys,
+        messages:[{role:"user",content:"Génère."}]})
+    });
+    const d=await res.json();
+    const t=d.content?.map(b=>b.text||"").join("")||"";
+    return JSON.parse(t.replace(/```json|```/g,"").trim());
+  } catch {
+    return FALLBACK[(round*5+used.length)%FALLBACK.length];
+  }
+}
+
+// ── Image compress ────────────────────────────────────────
+function compressPhoto(file,size=180){
+  return new Promise(res=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");
+        const rat=Math.min(size/img.width,size/img.height);
+        c.width=img.width*rat; c.height=img.height*rat;
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        res(c.toDataURL("image/jpeg",.72));
+      };
+      img.src=e.target.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────
+const el=id=>document.getElementById(id);
+const h=html=>{const d=document.createElement("div");d.innerHTML=html;return d.firstChild};
+function toast(msg,color="#e8ecf8"){
+  const t=el("toast");
+  t.textContent=msg; t.style.color=color; t.style.borderColor=color+"66";
+  t.style.border="1px solid"; t.style.display="block";
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display="none",3200);
+}
+function av(photo,name,size,border,color){
+  if(photo) return `<div class="av" style="width:${size}px;height:${size}px;border-color:${border}"><img src="${photo}"/></div>`;
+  return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*.4}px;background:rgba(168,85,247,.15);border-color:${border};color:${color}">${(name||"?")[0].toUpperCase()}</div>`;
+}
+function render(html){ el("app").innerHTML=html; }
+
+// ── Boot ──────────────────────────────────────────────────
+showSplash();
+setTimeout(async()=>{
+  const saved=localStorage.getItem("ecodim_uid");
+  if(saved){
+    const data=await dbGet("users/"+saved);
+    if(data){ USER={uid:saved,...data}; await dbSet("users/"+saved+"/online",true); setupPresence(saved); goMain(); checkBonus(); return; }
+  }
+  showAuth("register");
+},2200);
+
+function checkBonus(){
+  const key="bonus_"+USER.uid, today=new Date().toDateString();
+  if(localStorage.getItem(key)!==today){
+    localStorage.setItem(key,today);
+    if(USER.points===0){ dbSet("users/"+USER.uid+"/points",5); USER.points=5; setTimeout(()=>toast("🎁 +5 points gratuits !","#f0a500"),1200); }
+  }
+}
+
+// ── SPLASH ────────────────────────────────────────────────
+function showSplash(){
+  render(`<div class="splash">
+    <div class="sglow">✝️</div>
+    <div class="slogo">ECO<span>DIM</span></div>
+    <div style="font-family:'Barlow Condensed';font-size:13px;letter-spacing:6px;text-transform:uppercase;color:#556080">Bible Challenge</div>
+    <div style="font-size:13px;color:#556080;line-height:1.7;max-width:280px;margin-top:4px;text-align:center">Défie d'autres joueurs en temps réel sur la connaissance de la Bible</div>
+    <div class="sbar"><div class="sfill"></div></div>
+    <div style="font-size:12px;color:#556080" class="pulse">Connexion...</div>
+  </div>`);
+}
+
+// ── AUTH ──────────────────────────────────────────────────
+function showAuth(mode="register"){
+  if(mode==="register"){
+    render(`<div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-family:'Cinzel Decorative';font-size:22px;color:#f0a500">ECO<span style="color:#fff">DIM</span></div>
+        <div style="font-size:13px;color:#556080;margin-top:6px">Bible Challenge</div>
+      </div>
+      <div class="card fadein">
+        <div style="font-weight:800;font-size:18px;margin-bottom:4px">Créer mon compte</div>
+        <div style="font-size:13px;color:#556080;margin-bottom:18px">🎁 Tu reçois <strong style="color:#f0a500">20 points</strong> de départ</div>
+        <div id="photo-wrap" class="photopick" style="width:80px;height:80px" onclick="el('photo-inp').click()">
+          <span style="font-size:28px">📷</span><span>Photo</span>
+        </div>
+        <input id="photo-inp" type="file" accept="image/*" style="display:none" onchange="handlePhoto(this)"/>
+        <div class="fld"><label class="lbl">Prénom & Nom *</label><input class="inp" id="reg-name" placeholder="Marcel Camara"/></div>
+        <div class="fld"><label class="lbl">Église</label><input class="inp" id="reg-church" placeholder="Assemblée de Dieu"/></div>
+        <div class="fld"><label class="lbl">Ville</label><input class="inp" id="reg-city" placeholder="Conakry"/></div>
+        <div class="fld"><label class="lbl">Code PIN 4 chiffres (pour te reconnecter)</label>
+          <input class="inp" id="reg-pin" type="number" placeholder="1234" maxlength="4"/></div>
+        <button class="btn bgold" onclick="doRegister()">Créer mon compte ✝️</button>
+        <div style="text-align:center;margin:14px 0;font-size:13px;color:#556080">— ou —</div>
+        <button class="btn bout" onclick="showAuth('login')">J'ai déjà un compte</button>
+      </div>
+    </div>`);
+  } else {
+    render(`<div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;justify-content:center">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-family:'Cinzel Decorative';font-size:22px;color:#f0a500">ECO<span style="color:#fff">DIM</span></div>
+      </div>
+      <div class="card fadein">
+        <div style="font-weight:800;font-size:18px;margin-bottom:4px">Connexion</div>
+        <div style="font-size:13px;color:#556080;margin-bottom:18px">Entre ton prénom et ton code PIN</div>
+        <div class="fld"><label class="lbl">Prénom & Nom</label><input class="inp" id="login-name" placeholder="Marcel Camara"/></div>
+        <div class="fld"><label class="lbl">Code PIN</label><input class="inp" id="login-pin" type="number" placeholder="1234"/></div>
+        <button class="btn bgold" onclick="doLogin()">Se connecter</button>
+        <div style="text-align:center;margin:14px 0;font-size:13px;color:#556080">— ou —</div>
+        <button class="btn bout" onclick="showAuth('register')">Créer un compte</button>
+      </div>
+    </div>`);
+  }
+}
+
+window.el=el;
+window.showAuth=showAuth;
+let _regPhoto=null;
+window.handlePhoto=async function(inp){
+  const file=inp.files[0]; if(!file) return;
+  _regPhoto=await compressPhoto(file,180);
+  const w=el("photo-wrap");
+  w.innerHTML=`<img src="${_regPhoto}"/><div class="ov" style="position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;border-radius:50%;opacity:0;transition:opacity .2s"><span style="font-size:18px;color:#fff">✏️</span></div>`;
+};
+
+window.doRegister=async function(){
+  const name=el("reg-name")?.value.trim();
+  const church=el("reg-church")?.value.trim()||"Inconnue";
+  const city=el("reg-city")?.value.trim()||"Inconnue";
+  const pin=el("reg-pin")?.value.trim();
+  if(!name){toast("Entre ton prénom","#ff1744");return;}
+  if(!pin||pin.length<4){toast("Code PIN de 4 chiffres requis","#ff1744");return;}
+  const uid=Date.now()+"_"+name.replace(/\s+/g,"").toLowerCase().slice(0,10);
+  const data={name,church,city,photo:_regPhoto||null,pin,points:20,wins:0,losses:0,online:true,createdAt:Date.now()};
+  await dbSet("users/"+uid,data);
+  setupPresence(uid);
+  localStorage.setItem("ecodim_uid",uid);
+  USER={uid,...data}; _regPhoto=null;
+  goMain();
+  toast("Bienvenue "+name+" ! 🎉 +20 pts","#00e676");
+};
+
+window.doLogin=async function(){
+  const name=el("login-name")?.value.trim();
+  const pin=el("login-pin")?.value.trim();
+  if(!name||!pin){toast("Remplis tous les champs","#ff1744");return;}
+  const data=await dbGet("users");
+  if(!data){toast("Aucun joueur trouvé","#ff1744");return;}
+  const entry=Object.entries(data).find(([,d])=>d.name.toLowerCase()===name.toLowerCase()&&d.pin===pin);
+  if(!entry){toast("Pseudo ou PIN incorrect","#ff1744");return;}
+  const [uid,udata]=entry;
+  localStorage.setItem("ecodim_uid",uid);
+  await dbSet("users/"+uid+"/online",true);
+  // Marquer offline automatiquement si déconnecté
+  setupPresence(uid);
+  USER={uid,...udata};
+  goMain();
+  checkBonus();
+};
+
+// ── MAIN ──────────────────────────────────────────────────
+let _tab="lobby", _onlinePlayers=[];
+
+function goMain(){
+  _tab="lobby";
+  renderMain();
+  listenOnline();
+  listenChallenges();
+}
+
+function renderMain(){
+  const lvl=getLevel(USER.points);
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      <div class="hdr">
+        <div class="logo">ECO<span>DIM</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="text-align:right">
+            <div style="font-size:10px;color:#556080">${lvl.icon} ${lvl.name}</div>
+            <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${USER.points} pts</div>
+          </div>
+          ${av(USER.photo,USER.name,36,"#2979ff","#2979ff")}
+        </div>
+      </div>
+      <div class="page" id="tab-content" style="flex:1"></div>
+      <div class="bnav">
+        <button class="nb ${_tab==='lobby'?'on':''}" onclick="switchTab('lobby')"><span class="ic">⚔️</span>Lobby</button>
+        <button class="nb ${_tab==='leaderboard'?'on':''}" onclick="switchTab('leaderboard')"><span class="ic">🏆</span>Classement</button>
+        <button class="nb ${_tab==='profile'?'on':''}" onclick="switchTab('profile')"><span class="ic">👤</span>Profil</button>
+      </div>
+    </div>`;
+  renderTab();
+}
+
+window.switchTab=function(t){ _tab=t; renderMain(); };
+
+function renderTab(){
+  if(_tab==="lobby") renderLobby();
+  if(_tab==="leaderboard") renderLeader();
+  if(_tab==="profile") renderProfile();
+}
+
+// ── LOBBY ─────────────────────────────────────────────────
+let _selPlayer=null, _stake=5;
+
+function renderLobby(){
+  const lvl=getLevel(USER.points);
+  const rows=_onlinePlayers.length===0
+    ? `<div class="card" style="text-align:center;padding:24px;color:#556080">Aucun joueur en ligne 😔<br/><span style="font-size:12px;display:block;margin-top:4px">Partage l'app avec tes amis !</span></div>`
+    : _onlinePlayers.map(p=>{
+        const pl=getLevel(p.points);
+        return `<div class="prow" onclick="openChallModal('${p.uid}','${p.name.replace(/'/g,"\\'")}','${p.points}','${(p.church||"").replace(/'/g,"\\'")}','${(p.city||"").replace(/'/g,"\\'")}',${p.wins||0},${p.losses||0},'${p.photo||""}')">
+          <div class="odot"></div>
+          ${av(p.photo,p.name,44,"#d500f9","#d500f9")}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-size:11px;color:#556080">${p.church||""} · ${p.city||""}</div>
+            <div style="font-size:11px;margin-top:2px"><span style="color:#00e676">✓${p.wins||0}V</span> <span style="color:#556080">/</span> <span style="color:#ff1744">${p.losses||0}D</span></div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${p.points}</div>
+            <div style="font-size:10px;color:${pl.color}">${pl.name}</div>
+          </div>
+        </div>`;
+      }).join("");
+
+  el("tab-content").innerHTML=`<div class="fadein">
+    <div class="card cgold" style="margin-top:16px">
+      <div style="font-size:13px;color:#556080">Tes points</div>
+      <div class="pbig">${USER.points}</div>
+      <div style="font-size:13px;color:#556080;margin-top:4px">${lvl.icon} ${lvl.name}</div>
+    </div>
+    <div class="stitle">🟢 Joueurs en ligne</div>
+    ${rows}
+  </div>`;
+}
+
+window.openChallModal=function(uid,name,points,church,city,wins,losses,photo){
+  _selPlayer={uid,name,points:+points,church,city,wins:+wins,losses:+losses,photo:photo||null};
+  _stake=5;
+  const lvl=getLevel(+points);
+  const stakes=[3,5,10,15,20].map(v=>`
+    <button id="sk-${v}" onclick="setStake(${v})" style="padding:9px 16px;border-radius:9px;border:1px solid;cursor:pointer;
+      font-weight:700;font-size:15px;font-family:'Barlow Condensed';
+      background:${v===5?"#f0a500":"transparent"};color:${v===5?"#050810":"#8090b8"};
+      border-color:${v===5?"#f0a500":"#182038"}">${v}</button>`).join("");
+  document.body.insertAdjacentHTML("beforeend",`
+    <div class="mbg" id="chall-modal" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="margin-bottom:12px;display:flex;justify-content:center">${av(photo||null,name,60,"#d500f9","#d500f9")}</div>
+          <div style="font-weight:800;font-size:20px">${name}</div>
+          <div style="font-size:13px;color:#556080">${church} · ${city}</div>
+          <div style="font-family:'Cinzel Decorative';font-size:24px;color:#f0a500;margin-top:8px">${points} pts</div>
+          <div style="font-size:12px;color:${lvl.color}">${lvl.name}</div>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:13px;color:#556080;text-align:center;margin-bottom:12px">Combien de points miser ?</div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px">${stakes}</div>
+        <div id="stake-warn" style="text-align:center;color:#ff1744;font-size:12px;margin-bottom:12px;display:none">⚠️ Points insuffisants</div>
+        <button class="btn bgold" onclick="sendChall()">⚔️ Envoyer le défi — <span id="stake-lbl">5</span> pts</button>
+        <button class="btn bout mt8" onclick="closeModal()">Annuler</button>
+      </div>
+    </div>`);
+};
+window.setStake=function(v){
+  _stake=v;
+  document.querySelectorAll("[id^='sk-']").forEach(b=>{
+    const bv=+b.id.replace("sk-","");
+    b.style.background=bv===v?"#f0a500":"transparent";
+    b.style.color=bv===v?"#050810":"#8090b8";
+    b.style.borderColor=bv===v?"#f0a500":"#182038";
+  });
+  el("stake-lbl").textContent=v;
+  el("stake-warn").style.display=v>USER.points?"block":"none";
+};
+window.closeModal=function(){
+  const m=el("chall-modal"); if(m) m.remove();
+};
+window.sendChall=async function(){
+  if(_stake>USER.points){toast("Points insuffisants","#ff1744");return;}
+  await dbPush("challenges",{
+    from:USER.uid,fromName:USER.name,fromPhoto:USER.photo||null,fromPts:USER.points,
+    to:_selPlayer.uid,toName:_selPlayer.name,stake:_stake,status:"pending",createdAt:Date.now()
+  });
+  closeModal();
+  toast("Défi envoyé à "+_selPlayer.name+" ⚔️","#f0a500");
+};
+
+// ── Présence en ligne (onDisconnect) ──────────────────────
+function setupPresence(uid){
+  // Utiliser .info/connected de Firebase pour détecter déconnexion
+  const db = firebase.database();
+  const connRef = db.ref(".info/connected");
+  const userOnlineRef = db.ref("users/"+uid+"/online");
+  
+  connRef.on("value", snap => {
+    if(snap.val() === true){
+      // Quand connecté, marquer online
+      userOnlineRef.set(true);
+      // Quand déconnecté, marquer offline automatiquement
+      userOnlineRef.onDisconnect().set(false);
+    }
+  });
+  
+  // Aussi marquer offline si page fermée
+  window.addEventListener("beforeunload", ()=>{
+    userOnlineRef.set(false);
+  });
+  
+  window.addEventListener("pagehide", ()=>{
+    userOnlineRef.set(false);
+  });
+}
+
+// ── Modifier mes renseignements ────────────────────────────
+window.showEditProfile = function(){
+  const modal = document.createElement("div");
+  modal.id = "editModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  modal.innerHTML = `
+    <div style="background:#0d1526;border:1px solid #182038;border-radius:18px;padding:22px 18px;width:100%;max-width:360px;">
+      <div style="font-family:'Cinzel Decorative',cursive;color:#f0a500;font-size:1rem;margin-bottom:14px;text-align:center;">✏️ Modifier mon profil</div>
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Prénom & Nom</label>
+      <input id="editName" value="${USER.name||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Église</label>
+      <input id="editChurch" value="${USER.church||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Ville</label>
+      <input id="editCity" value="${USER.city||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Nouveau code PIN (optionnel)</label>
+      <input id="editPin" type="password" placeholder="Laisser vide pour garder l'ancien" maxlength="4" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:14px;">
+      
+      <button onclick="saveEditProfile()" style="width:100%;background:#f0a500;border:none;border-radius:10px;padding:12px;color:#050810;font-weight:800;font-size:.95rem;cursor:pointer;margin-bottom:8px;">💾 Sauvegarder</button>
+      <button onclick="document.getElementById('editModal').remove()" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:11px;color:#556080;font-size:.88rem;cursor:pointer;">Annuler</button>
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+window.saveEditProfile = async function(){
+  const name = document.getElementById("editName").value.trim();
+  const church = document.getElementById("editChurch").value.trim();
+  const city = document.getElementById("editCity").value.trim();
+  const newPin = document.getElementById("editPin").value.trim();
+  
+  if(!name){ alert("Le nom est obligatoire !"); return; }
+  
+  const updates = { name, church, city };
+  if(newPin && newPin.length === 4 && /^\d{4}$/.test(newPin)){
+    updates.pin = newPin;
+  }
+  
+  await dbSet("users/"+USER.uid+"/name", name);
+  await dbSet("users/"+USER.uid+"/church", church);
+  await dbSet("users/"+USER.uid+"/city", city);
+  if(updates.pin) await dbSet("users/"+USER.uid+"/pin", updates.pin);
+  
+  USER.name = name;
+  USER.church = church;
+  USER.city = city;
+  
+  document.getElementById("editModal").remove();
+  renderProfile();
+  toast("✅ Profil mis à jour !", "#00e676");
+};
+
+// ── Listen online ───────────────────────────────────────── ─────────────────────────────────────────
+function listenOnline(){
+  dbOn("users",data=>{
+    if(!data) return;
+    _onlinePlayers=Object.entries(data)
+      .filter(([uid,d])=>uid!==USER.uid&&d.online)
+      .map(([uid,d])=>({uid,...d}))
+      .sort((a,b)=>b.points-a.points);
+    if(_tab==="lobby") renderLobby();
+  });
+}
+
+// ── Listen challenges ─────────────────────────────────────
+function listenChallenges(){
+  dbOn("challenges",data=>{
+    if(!data) return;
+    Object.entries(data).forEach(([key,c])=>{
+      if(c.to===USER.uid&&c.status==="pending"&&(!PENDING||PENDING.key!==key)){
+        PENDING={...c,key};
+        el("cnotif-name").textContent=c.fromName;
+        el("cnotif-info").textContent="t'a défié · mise : "+c.stake+" pts";
+        el("cnotif").style.display="block";
+      }
+    });
+  });
+}
+
+window.acceptChallenge=async function(){
+  if(!PENDING) return;
+  await dbUpd("challenges/"+PENDING.key,{status:"accepted"});
+  const opp={uid:PENDING.from,name:PENDING.fromName,photo:PENDING.fromPhoto||null,points:PENDING.fromPts};
+  el("cnotif").style.display="none";
+  startMatch(opp,PENDING.stake,PENDING.key);
+  PENDING=null;
+};
+window.declineChallenge=async function(){
+  if(PENDING) await dbUpd("challenges/"+PENDING.key,{status:"declined"});
+  PENDING=null; el("cnotif").style.display="none";
+  toast("Défi refusé","#8090b8");
+};
+
+// ── LEADERBOARD ───────────────────────────────────────────
+async function renderLeader(){
+  el("tab-content").innerHTML=`<div style="text-align:center;padding:32px;color:#556080" class="pulse">Chargement...</div>`;
+  const data=await dbGet("users");
+  const list=data?Object.entries(data).map(([uid,d])=>({uid,...d})).sort((a,b)=>b.points-a.points):[];
+  el("tab-content").innerHTML=`<div class="fadein" style="padding-top:16px">
+    <div style="font-family:'Cinzel Decorative';font-size:18px;color:#f0a500;text-align:center;margin-bottom:4px">🏆 Classement</div>
+    <div style="font-size:13px;color:#556080;text-align:center;margin-bottom:14px">Meilleurs joueurs</div>
+    ${list.map((p,i)=>{
+      const isMe=p.uid===USER.uid, pl=getLevel(p.points);
+      return `<div class="rrow ${i<3?"r"+(i+1):"ro"}">
+        <div style="width:26px;text-align:center;font-size:${i<3?20:13}px;color:#556080;font-weight:700">${i<3?MEDALS[i]:"#"+(i+1)}</div>
+        ${av(p.photo,p.name,38,isMe?"#2979ff":"#d500f9",isMe?"#2979ff":"#d500f9")}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${isMe?" 👈":""}</div>
+          <div style="font-size:11px;color:#556080">${p.church||""} ${p.city?"· "+p.city:""}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:'Cinzel Decorative';font-size:16px;color:#f0a500">${p.points}</div>
+          <div style="font-size:10px;color:${pl.color}">${pl.name}</div>
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+// ── PROFILE ───────────────────────────────────────────────
+function renderProfile(){
+  const lvl=getLevel(USER.points), nextLvl=LEVELS.find(l=>l.min>USER.points);
+  const total=(USER.wins||0)+(USER.losses||0), wr=total>0?Math.round(((USER.wins||0)/total)*100):0;
+  const prog=nextLvl?Math.min(((USER.points-lvl.min)/(nextLvl.min-lvl.min))*100,100):100;
+  const badges=[
+    (USER.wins||0)>=1?`<span class="bdg" style="background:rgba(0,230,118,.12);color:#00e676;border:1px solid rgba(0,230,118,.2)">🏅 Première victoire</span>`:"",
+    (USER.wins||0)>=5?`<span class="bdg" style="background:rgba(41,121,255,.12);color:#2979ff;border:1px solid rgba(41,121,255,.2)">⚡ Série ×5</span>`:"",
+    USER.points>=50?`<span class="bdg" style="background:rgba(240,165,0,.12);color:#f0a500;border:1px solid rgba(240,165,0,.2)">⭐ Disciple</span>`:"",
+    USER.points>=150?`<span class="bdg" style="background:rgba(213,0,249,.12);color:#d500f9;border:1px solid rgba(213,0,249,.2)">🕊️ Évangéliste</span>`:"",
+    USER.points>=300?`<span class="bdg" style="background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.2)">⭐ Ancien</span>`:"",
+    (USER.wins||0)===0?`<span class="bdg" style="background:rgba(86,96,128,.12);color:#556080;border:1px solid #182038">🔒 Lance ton premier défi !</span>`:"",
+  ].filter(Boolean).join("");
+  const histRows=HISTORY.length===0
+    ?`<div style="text-align:center;color:#556080;font-size:14px;padding:20px">Aucun match joué encore</div>`
+    :HISTORY.slice(0,10).map(h=>`<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px">
+        <div style="font-size:22px">${h.result==="win"?"🏆":h.result==="tie"?"🤝":"😔"}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">vs ${h.opponent}</div><div style="font-size:11px;color:#556080">${h.date}</div></div>
+        <div style="font-family:'Cinzel Decorative';font-size:14px;color:${h.result==="win"?"#00e676":h.result==="tie"?"#f0a500":"#ff1744"}">${h.result==="win"?"+":h.result==="tie"?"±":"-"}${h.stake} pts</div>
+      </div>`).join("");
+
+  el("tab-content").innerHTML=`<div class="fadein" style="padding-top:16px">
+    <div class="card cgold" style="text-align:center">
+      <div style="position:relative;width:80px;margin:0 auto 12px">
+        ${av(USER.photo,USER.name,80,"#2979ff","#2979ff")}
+        <button onclick="el('profile-photo-inp').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:#f0a500;border:2px solid #050810;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px">✏️</button>
+        <input id="profile-photo-inp" type="file" accept="image/*" style="display:none" onchange="changePhoto(this)"/>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <div style="font-weight:800;font-size:20px">${USER.name}</div>
+        <button onclick="showEditProfile()" style="background:rgba(41,121,255,.15);border:1px solid rgba(41,121,255,.3);border-radius:8px;padding:4px 9px;color:#2979ff;font-size:.72rem;cursor:pointer;">✏️ Modifier</button>
+      </div>
+      <div style="font-size:13px;color:#556080">${USER.church} · ${USER.city}</div>
+      <div class="pbig" style="margin:12px 0 6px">${USER.points}</div>
+      <span class="bdg" style="background:rgba(240,165,0,.12);color:#f0a500;border:1px solid rgba(240,165,0,.2)">${lvl.icon} ${lvl.name}</span>
+      ${nextLvl?`<div style="margin-top:14px">
+        <div style="font-size:11px;color:#556080;margin-bottom:6px">Vers ${nextLvl.name} (${nextLvl.min-USER.points} pts)</div>
+        <div style="background:#182038;border-radius:4px;height:6px;overflow:hidden"><div style="height:100%;border-radius:4px;background:#f0a500;width:${prog}%"></div></div>
+      </div>`:""}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      ${[[USER.wins||0,"Victoires","#00e676"],[USER.losses||0,"Défaites","#ff1744"],[wr+"%","Win rate","#2979ff"]].map(([v,l,c])=>`
+        <div class="card" style="text-align:center;padding:12px">
+          <div style="font-family:'Cinzel Decorative';font-size:22px;color:${c}">${v}</div>
+          <div style="font-size:11px;color:#556080;margin-top:3px">${l}</div>
+        </div>`).join("")}
+    </div>
+    <div class="stitle">🎖️ Badges</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${badges||"<span style='color:#556080;font-size:13px'>Lance ton premier match !</span>"}</div>
+    <div class="stitle">📜 Historique</div>
+    ${histRows}
+    <button class="btn bout mt16" onclick="doLogout()">🚪 Se déconnecter</button>
+  </div>`;
+}
+
+window.changePhoto=async function(inp){
+  const file=inp.files[0]; if(!file) return;
+  const b64=await compressPhoto(file,180);
+  await dbSet("users/"+USER.uid+"/photo",b64);
+  USER.photo=b64;
+  renderMain();
+  toast("Photo mise à jour ✅","#00e676");
+};
+
+window.doLogout=async function(){
+  await dbSet("users/"+USER.uid+"/online",false);
+  localStorage.removeItem("ecodim_uid");
+  USER=null; MATCH=null; PENDING=null;
+  dbOff("users"); dbOff("challenges");
+  showAuth("register");
+};
+
+// ══════════════════════════════════════════════════════════
+// MATCH
+// ══════════════════════════════════════════════════════════
+function startMatch(opp,stake,matchId){
+  MATCH={
+    id:matchId||"m_"+Date.now(), opponent:opp, stake,
+    round:1, qIndex:0, qCounts:[rndQ(),rndQ(),rndQ()],
+    myScore:0, oppScore:0, myRW:0, oppRW:0,
+    roundMyQ:0, roundOppQ:0, roundSummary:[],
+    usedTopics:[], currentQ:null, myAnswer:null, oppAnswer:null,
+  };
+  showCountdown();
+}
+
+function showCountdown(){
+  const cd=el("cdown");
+  cd.style.display="flex";
+  el("cd-lbl").textContent=`Manche ${MATCH.round}/3 · ${MATCH.qCounts[MATCH.round-1]} questions`;
+  el("cd-p1").textContent=USER.name.split(" ")[0];
+  el("cd-p2").textContent=MATCH.opponent.name.split(" ")[0];
+  let n=3;
+  const tick=()=>{
+    el("cd-num").textContent=n;
+    el("cd-num").style.animation="none";
+    void el("cd-num").offsetWidth;
+    el("cd-num").style.animation="countPop .4s ease";
+    if(n===0){ cd.style.display="none"; renderMatchQ(); return; }
+    n--; CD_TIMER=setTimeout(tick,1000);
+  };
+  tick();
+}
+
+function renderMatchHdr(){
+  const ms=MATCH;
+  const qNum=ms.qIndex+1, qTotal=ms.qCounts[ms.round-1];
+  const dots=(wins)=>[0,1,2].map(i=>`<div class="rdot ${i<wins?"on":""}"></div>`).join("");
+  return `<div style="background:rgba(5,8,16,.98);backdrop-filter:blur(16px);border-bottom:1px solid #182038;padding:10px 14px;flex-shrink:0">
+    <div class="msb">
+      <div class="mside">
+        <div class="mname" style="color:#2979ff">${USER.name.split(" ")[0]}</div>
+        <div class="mpts" style="color:#2979ff">${ms.myScore}</div>
+        <div class="rdots" style="color:#2979ff">${dots(ms.myRW)}</div>
+      </div>
+      <div class="vchip">M.${ms.round}/3<br/><span style="font-size:9px;color:#556080">Q${qNum}/${qTotal}</span></div>
+      <div class="mside">
+        <div class="mname" style="color:#00e676">${ms.opponent.name.split(" ")[0]}</div>
+        <div class="mpts" style="color:#00e676">${ms.oppScore}</div>
+        <div class="rdots" style="color:#00e676">${dots(ms.oppRW)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function renderMatchQ(){
+  const ms=MATCH;
+  const DIFFS=["Difficile","Très difficile","Niveau Expert"];
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      ${renderMatchHdr()}
+      <div style="flex:1;overflow-y:auto;padding:14px 14px 32px" id="q-area">
+        <div class="ldr">
+          <div class="lbook">📖</div>
+          <div style="font-size:13px;color:#556080" class="pulse">L'IA prépare une question ${DIFFS[ms.round-1].toLowerCase()}...</div>
+          <div class="lbar"><div class="lfill"></div></div>
+        </div>
+      </div>
+    </div>`;
+
+  ms.myAnswer=null; ms.oppAnswer=null;
+  const q=await genQ(ms.round, ms.usedTopics);
+  ms.currentQ=q;
+  if(q.topic) ms.usedTopics.push(q.topic);
+
+  // Push question to Firebase for online sync
+  if(ms.id && ms.id!=="demo") await dbSet(`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/question`,q);
+
+  showQuestion();
+  listenOppAnswer();
+}
+
+function showQuestion(){
+  const ms=MATCH, q=ms.currentQ;
+  const DIFFS=["Difficile","Très difficile","Niveau Expert"];
+  const revealed=ms.myAnswer!==null&&ms.oppAnswer!==null;
+  const myC=revealed&&ms.myAnswer===q.correct;
+  const oppC=revealed&&ms.oppAnswer===q.correct;
+
+  const ansHtml=q.answers.map((a,i)=>{
+    let cls="abtn";
+    if(revealed){
+      if(i===q.correct) cls="abtn ok";
+      else if(i===ms.myAnswer&&i!==q.correct) cls="abtn bad";
+      else cls="abtn rv";
+    }
+    const markers=revealed?`<span style="font-size:12px;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      ${i===ms.myAnswer?`<span>${myC&&i===q.correct?"✅":"❌"} Toi</span>`:""}
+      ${i===ms.oppAnswer?`<span>${oppC&&i===q.correct?"✅":"❌"} ${ms.opponent.name.split(" ")[0]}</span>`:""}
+    </span>`:"";
+    return `<button class="${cls}" onclick="submitAns(${i})" ${ms.myAnswer!==null?"disabled":""}>
+      <div class="altr">${["A","B","C","D"][i]}</div>
+      <span style="flex:1">${a}</span>${markers}
+    </button>`;
+  }).join("");
+
+  el("q-area").innerHTML=`<div class="fadein">
+    <div class="qlbl">Manche ${ms.round}/3 · Q<strong>${ms.qIndex+1}/${ms.qCounts[ms.round-1]}</strong> · ${DIFFS[ms.round-1]}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#0b1020;border:1px solid #182038;border-radius:12px;padding:8px 14px;margin-bottom:12px;font-size:13px">
+      <span style="color:#2979ff;font-weight:700">${USER.name.split(" ")[0]} : ${ms.roundMyQ}✓</span>
+      <span style="color:#556080;font-size:11px">cette manche</span>
+      <span style="color:#00e676;font-weight:700">${ms.roundOppQ}✓ : ${ms.opponent.name.split(" ")[0]}</span>
+    </div>
+    <div class="qbox">
+      <div class="qdiff">🔥 ${DIFFS[ms.round-1]}</div>
+      <div class="qref">${q.reference||""}</div>
+      <div class="qtxt">${q.question}</div>
+    </div>
+    ${ms.myAnswer!==null&&!revealed?`<div class="wait"><span>✅ Réponse envoyée — attente de ${ms.opponent.name.split(" ")[0]}</span><div class="dots"><span></span><span></span><span></span></div></div>`:""}
+    ${ansHtml}
+    ${revealed?`<div class="expl"><strong style="color:#f0a500">📖 Bonne réponse :</strong> ${q.answers[q.correct]}<br/><br/>${q.explanation||""}</div>`:""}
+  </div>`;
+}
+
+window.submitAns=async function(idx){
+  const ms=MATCH;
+  if(ms.myAnswer!==null) return;
+  ms.myAnswer=idx;
+  showQuestion();
+
+  // Push to Firebase
+  if(ms.id) await dbSet(`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/${USER.uid}`,idx);
+
+  // Simulate opponent if no real opponent synced
+  if(!ms._oppListening){
+    setTimeout(()=>{
+      ms.oppAnswer=Math.random()<0.38?ms.currentQ.correct:Math.floor(Math.random()*4);
+      showQuestion();
+      setTimeout(()=>revealAndNext(),2200);
+    },900+Math.random()*1800);
+  }
+};
+
+function listenOppAnswer(){
+  const ms=MATCH;
+  if(!ms.id) return;
+  ms._oppListening=true;
+  const path=`matches/${ms.id}/r${ms.round}_q${ms.qIndex}/${ms.opponent.uid}`;
+  dbOn(path,val=>{
+    if(val!==null&&ms.oppAnswer===null){
+      ms.oppAnswer=val;
+      showQuestion();
+      if(ms.myAnswer!==null) setTimeout(()=>revealAndNext(),2200);
+    }
+  });
+}
+
+function revealAndNext(){
+  const ms=MATCH, q=ms.currentQ;
+  const myC=ms.myAnswer===q.correct, oppC=ms.oppAnswer===q.correct;
+  const qTotal=ms.qCounts[ms.round-1], isLast=ms.qIndex>=qTotal-1;
+
+  ms.myScore+=(myC?1:0); ms.oppScore+=(oppC?1:0);
+  ms.roundMyQ+=(myC?1:0); ms.roundOppQ+=(oppC?1:0);
+
+  // Update header
+  const hdr=document.querySelector(".msb")?.parentElement;
+  if(hdr) hdr.outerHTML=renderMatchHdr();
+
+  showQuestion(); // show revealed state
+
+  setTimeout(()=>{
+    if(isLast) finishRound();
+    else{
+      ms.qIndex++;
+      ms.currentQ=null; ms.myAnswer=null; ms.oppAnswer=null;
+      renderMatchQ();
+    }
+  },3600);
+}
+
+function finishRound(){
+  const ms=MATCH;
+  const myWon=ms.roundMyQ>ms.roundOppQ, oppWon=ms.roundOppQ>ms.roundMyQ;
+  if(myWon) ms.myRW++;
+  if(oppWon) ms.oppRW++;
+  ms.roundSummary.push({round:ms.round,myQ:ms.roundMyQ,oppQ:ms.roundOppQ,
+    total:ms.qCounts[ms.round-1],winner:myWon?"me":oppWon?"opp":"tie"});
+
+  const s=ms.roundSummary[ms.roundSummary.length-1];
+  const over=ms.round>=3||ms.myRW>=2||ms.oppRW>=2;
+
+  el("app").innerHTML=`
+    <div style="display:flex;flex-direction:column;min-height:100vh">
+      ${renderMatchHdr()}
+      <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px;text-align:center;flex:1">
+        <div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#556080">Résumé — Manche ${s.round}</div>
+        <div style="font-size:15px;font-weight:700;color:${s.winner==="me"?"#00e676":s.winner==="opp"?"#ff1744":"#f0a500"}">
+          ${s.winner==="me"?`✅ ${USER.name.split(" ")[0]} remporte la manche !`
+            :s.winner==="opp"?`✅ ${ms.opponent.name.split(" ")[0]} remporte la manche !`
+            :"🤝 Manche à égalité"}
+        </div>
+        <div class="card" style="width:100%">
+          <div style="display:flex;justify-content:space-around;align-items:center">
+            <div style="text-align:center">
+              <div style="font-size:12px;color:#2979ff;margin-bottom:4px">${USER.name.split(" ")[0]}</div>
+              <div style="font-family:'Cinzel Decorative';font-size:40px;color:#2979ff">${s.myQ}</div>
+              <div style="font-size:11px;color:#556080">/ ${s.total}</div>
+            </div>
+            <div style="font-family:'Cinzel Decorative';font-size:18px;color:#f0a500">VS</div>
+            <div style="text-align:center">
+              <div style="font-size:12px;color:#00e676;margin-bottom:4px">${ms.opponent.name.split(" ")[0]}</div>
+              <div style="font-family:'Cinzel Decorative';font-size:40px;color:#00e676">${s.oppQ}</div>
+              <div style="font-size:11px;color:#556080">/ ${s.total}</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;font-family:'Barlow Condensed';font-size:16px;font-weight:700">
+          <span style="color:#2979ff">${ms.myRW} manche${ms.myRW>1?"s":""}</span>
+          <span style="color:#556080">—</span>
+          <span style="color:#00e676">${ms.oppRW} manche${ms.oppRW>1?"s":""}</span>
+        </div>
+        <div style="font-size:13px;color:#556080" class="pulse">${over?"Fin du match...":"Manche "+(ms.round+1)+" dans quelques secondes..."}</div>
+      </div>
+    </div>`;
+
+  setTimeout(()=>{
+    if(over) showResult();
+    else{
+      ms.round++; ms.qIndex=0; ms.roundMyQ=0; ms.roundOppQ=0;
+      ms.currentQ=null; ms.myAnswer=null; ms.oppAnswer=null;
+      showCountdown();
+    }
+  },over?5000:4500);
+}
+
+async function showResult(){
+  const ms=MATCH;
+  const won=ms.myRW>ms.oppRW, tied=ms.myRW===ms.oppRW;
+
+  if(!tied){
+    const np=Math.max(0,USER.points+(won?ms.stake:-ms.stake));
+    USER.points=np;
+    await dbSet("users/"+USER.uid+"/points",np);
+    await dbTx("users/"+USER.uid+"/"+(won?"wins":"losses"),v=>(v||0)+1);
+    if(won) USER.wins=(USER.wins||0)+1; else USER.losses=(USER.losses||0)+1;
+    if(ms.id) await dbUpd("challenges/"+ms.id,{status:"done"});
+  }
+
+  HISTORY.unshift({id:Date.now(),opponent:ms.opponent.name,
+    result:tied?"tie":won?"win":"loss",stake:ms.stake,
+    date:new Date().toLocaleDateString("fr-FR")});
+
+  const rows=ms.roundSummary.map(s=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-top:1px solid #182038">
+      <span style="font-size:13px;color:#556080">Manche ${s.round}</span>
+      <span style="font-weight:700;color:#2979ff">${s.myQ}/${s.total}</span>
+      <span style="font-weight:700;color:#00e676">${s.oppQ}/${s.total}</span>
+      <span style="font-size:16px">${s.winner==="me"?"🔵":s.winner==="opp"?"🟢":"🤝"}</span>
+    </div>`).join("");
+
+  el("app").innerHTML=`
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;text-align:center">
+      <div style="font-size:80px;animation:bounceIn .5s ease">${tied?"🤝":won?"🏆":"😔"}</div>
+      <div style="font-family:'Cinzel Decorative';font-size:26px;color:${tied?"#f0a500":won?"#00e676":"#ff1744"}">
+        ${tied?"Égalité !":won?USER.name.split(" ")[0]+" gagne !":ms.opponent.name.split(" ")[0]+" gagne !"}
+      </div>
+      <div style="font-size:14px;color:#556080">
+        ${tied?"Aucun point échangé":won?`+${ms.stake} points remportés 🎉`:`-${ms.stake} points perdus`}
+      </div>
+      <div class="card" style="width:100%">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#556080;margin-bottom:8px;padding:0 4px">
+          <span>Manche</span><span style="color:#2979ff">${USER.name.split(" ")[0]}</span>
+          <span style="color:#00e676">${ms.opponent.name.split(" ")[0]}</span><span>Résultat</span>
+        </div>
+        ${rows}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-top:1px solid #182038">
+          <span style="font-weight:700;font-size:13px">Total</span>
+          <span style="font-family:'Cinzel Decorative';font-size:18px;color:#2979ff">${ms.myScore}</span>
+          <span style="font-family:'Cinzel Decorative';font-size:18px;color:#00e676">${ms.oppScore}</span>
+          <span style="font-size:16px">${won?"🏆":"😔"}</span>
+        </div>
+      </div>
+      <button class="btn bgold" onclick="goMain()">🏠 Retour au Lobby</button>
+    </div>`;
+
+  toast(tied?"🤝 Égalité !":won?`🏆 +${ms.stake} pts !`:`😔 -${ms.stake} pts`,
+    tied?"#f0a500":won?"#00e676":"#ff1744");
+  MATCH=null;
+}
+
+window.goMain=goMain;
+window.startMatch=startMatch;
+
+</script>
+
 </body>
 </html>
