@@ -906,841 +906,90 @@ function askName(){
 }
 
 async function saveQuickProfile(){
+  const btn=document.getElementById("regSubmitBtn");
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Inscription...';}
+  
   const prenom=(document.getElementById("nameInp")?.value||"").trim();
   if(!prenom){
     document.getElementById("nameInp").style.borderColor="var(--red)";
     document.getElementById("nameInp").placeholder="⚠️ Prénom obligatoire !";
+    if(btn){btn.disabled=false;btn.innerHTML="🚀 C'est parti !";}
     return;
   }
   const nom=(document.getElementById("nomInp")?.value||"").trim();
   const pays=(document.getElementById("paysInp")?.value||"").trim();
   const ville=(document.getElementById("villeInp")?.value||"").trim();
   const eglise=(document.getElementById("egliseInp")?.value||"").trim();
-  
+
+  const id="u"+Date.now();
+  const newUser={
+    id,prenom,nom,pays,ville,eglise,
+    avatar:selectedAvatar||"😇",
+    xp:0,coins:100,storiesDone:[],quizDone:0,
+    unlockedAvatars:[],
+    registeredAt:new Date().toISOString(),
+    lastActive:new Date().toISOString()
+  };
+
+  // Sauvegarde locale immédiate
+  localStorage.setItem("ecodime_uid",id);
+  localStorage.setItem("ecodime_user",JSON.stringify(newUser));
+
+  _currentUser=newUser;
+  xp=0;coins=100;
+  initHomeProfile();
+  document.getElementById("mainNav").style.display="flex";
+  document.getElementById("nameModal")?.remove();
+  showScreen("homeScreen",0);
+  renderStories();
+  toast("🎉 Bienvenue "+prenom+" ! Tu as 100 🪙 de départ !");
+  if(btn){btn.disabled=false;btn.innerHTML="🚀 C'est parti !";}
+
+  // Firebase en arrière-plan si dispo
+  if(window.fbDB){
+    try{await window.fbSet("users/"+id,newUser);}catch(e){}
+  }
+}
+
+// Vérifier session au démarrage
+async function checkSession(){
   try{
-    const r=await fetch('/api/register',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prenom,nom,pays,ville,eglise})
-    });
-    const d=await r.json();
-    if(!d.success){toast("❌ "+d.message);return;}
-    _currentUser=d.user;xp=0;coins=0;
+    const uid=localStorage.getItem("ecodime_uid");
+    const cached=localStorage.getItem("ecodime_user");
+    if(!uid||!cached)return false;
+    const u=JSON.parse(cached);
+    _currentUser=u;
+    xp=u.xp||0;coins=u.coins||0;
     initHomeProfile();
     document.getElementById("mainNav").style.display="flex";
-    document.getElementById("nameModal")?.remove();
-    showScreen("homeScreen",0);renderStories();
-    toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
-    // Sauvegarder aussi sur Firebase
-    saveToFirebase(d.user);
-  }catch(e){
-    toast("❌ Erreur de connexion au serveur");
-  }
+    showScreen("homeScreen",0);
+    renderStories();
+    return true;
+  }catch(e){return false;}
 }
 
 // Sauvegarder profil sur Firebase
 async function saveToFirebase(user){
-  if(!window.fbDB || !user) return;
-  try{
-    await window.fbSet("users/"+user.id, {
-      prenom: user.prenom,
-      nom: user.nom||"",
-      pays: user.pays||"",
-      ville: user.ville||"",
-      eglise: user.eglise||"",
-      xp: user.xp||0,
-      coins: user.coins||0,
-      storiesDone: user.storiesDone||[],
-      lastActive: new Date().toISOString(),
-      registeredAt: user.registeredAt||new Date().toISOString()
-    });
-  }catch(e){ console.log("Firebase save error:", e); }
+  if(!window.fbDB||!user)return;
+  try{await window.fbSet("users/"+user.id,user);}catch(e){}
 }
 
-// Sync progression Firebase
 async function syncProgressFirebase(){
-  if(!_currentUser) return;
+  if(!_currentUser)return;
   try{
-    const updates = {xp, coins, storiesDone:_currentUser.storiesDone||[], lastActive:new Date().toISOString()};
-    if(_currentUser.avatar) updates.avatar=_currentUser.avatar;
-    if(_currentUser.unlockedAvatars) updates.unlockedAvatars=_currentUser.unlockedAvatars;
-    // Sauvegarder localement
-    Object.assign(_currentUser, updates);
-    localStorage.setItem("ecodime_user", JSON.stringify(_currentUser));
-    // Sauvegarder Firebase
-    if(window.fbDB) await window.fbUpdate("users/"+_currentUser.id, updates);
+    const updates={
+      xp,coins,
+      storiesDone:_currentUser.storiesDone||[],
+      avatar:_currentUser.avatar||"😇",
+      unlockedAvatars:_currentUser.unlockedAvatars||[],
+      lastActive:new Date().toISOString()
+    };
+    Object.assign(_currentUser,updates);
+    localStorage.setItem("ecodime_user",JSON.stringify(_currentUser));
+    if(window.fbDB)await window.fbUpdate("users/"+_currentUser.id,updates).catch(()=>{});
   }catch(e){}
 }
 
-// STORIES DATA
-const AT_STORIES=[
-  {id:"creation",title:"La Création",sub:"Dieu crée le monde",em:"🌍",color:"sc1",steps:[
-    {em:"🌑",sc:"Au commencement...",narr:"Au commencement, Dieu créa les cieux et la terre. Il y avait des ténèbres partout. L'Esprit de Dieu planait sur les eaux.",ch:[{ic:"💡",txt:"Dieu dit : Que la lumière soit !"},{ic:"😴",txt:"Rester dans les ténèbres"}],good:0,gr:"✅ Dieu dit : Que la lumière soit ! Et la lumière fut. Il sépara la lumière des ténèbres : le jour et la nuit ! C'est le début de la création.",br:"❌ Sans lumière, rien ne peut exister. Dieu a parlé et la création a commencé."},
-    {em:"🌿",sc:"Les plantes et animaux !",narr:"Dieu créa les plantes, les arbres, les animaux de la mer, les oiseaux et les animaux de la terre. Tout était magnifique !",ch:[{ic:"🙌",txt:"Admirer la beauté de la création"},{ic:"😐",txt:"Trouver ça ordinaire"}],good:0,gr:"✅ Dieu vit que tout était très bon ! Chaque créature est un chef-d'œuvre qui reflète la grandeur de Dieu.",br:"❌ La création est extraordinaire ! Chaque plante et animal montre la sagesse infinie de Dieu."},
-    {em:"👤",sc:"L'être humain !",narr:"Dieu dit : Faisons l'homme à notre image ! Il prit de la poussière et souffla dans ses narines. L'homme devint un être vivant !",ch:[{ic:"🙏",txt:"Remercier Dieu d'être vivant"},{ic:"😤",txt:"Penser vivre sans Dieu"}],good:0,gr:"🎉 Tu es fait à l'image de Dieu ! C'est un cadeau extraordinaire. Chaque être humain est précieux et unique aux yeux de son Créateur !",br:"❌ Sans Dieu, nous ne sommes rien. C'est lui qui nous a donné la vie et le souffle !"}
-  ]},
-  {id:"noe",title:"L'Arche de Noé",sub:"La foi face au déluge",em:"🚢",color:"sc3",steps:[
-    {em:"🌧️",sc:"Le déluge approche !",narr:"Dieu parla à Noé : Il va pleuvoir 40 jours et 40 nuits. Construis une arche pour sauver ta famille et deux animaux de chaque espèce !",ch:[{ic:"🪵",txt:"Construire l'arche avec foi !"},{ic:"😰",txt:"Avoir peur et ne rien faire"}],good:0,gr:"✅ Noé obéit à Dieu ! Il construisit l'arche malgré les moqueries. La foi c'est agir même quand les autres ne comprennent pas.",br:"❌ Sans obéissance, tout serait perdu. La foi c'est faire confiance même sans tout comprendre."},
-    {em:"🦁",sc:"Les animaux arrivent !",narr:"L'arche est prête. Les animaux viennent de partout : lions, éléphants, colombes, serpents. Dieu les envoya lui-même !",ch:[{ic:"🦒",txt:"Accueillir tous les animaux"},{ic:"😱",txt:"Refuser les animaux sauvages"}],good:0,gr:"✅ Noé accueille tous les animaux ! Dieu avait dit DEUX de chaque espèce. Tous montent en paix.",br:"❌ Dieu avait dit tous les animaux. Il faut obéir entièrement !"},
-    {em:"🌈",sc:"L'arc-en-ciel !",narr:"Après 40 jours la pluie s'arrêta. Noé envoya une colombe. Elle revint avec un rameau d'olivier. Puis Dieu mit un arc-en-ciel dans le ciel !",ch:[{ic:"😊",txt:"Remercier Dieu et célébrer"},{ic:"😐",txt:"Rentrer sans remercier"}],good:0,gr:"🎉 Dieu dit : L'arc-en-ciel sera le signe de mon alliance avec vous. Je ne détruirai plus jamais la terre par les eaux. Dieu tient ses promesses !",br:"❌ La gratitude est importante ! Noé offrit des sacrifices à Dieu pour le remercier."}
-  ]},
-  {id:"abraham",title:"Abraham le Père des Croyants",sub:"La foi d'Abraham",em:"⭐",color:"sc4",steps:[
-    {em:"🌟",sc:"L'appel de Dieu",narr:"Dieu dit à Abraham : Quitte ton pays et va vers le pays que je te montrerai. Je ferai de toi une grande nation. Abraham avait 75 ans !",ch:[{ic:"🚶",txt:"Partir sans savoir où on va"},{ic:"🏠",txt:"Rester dans sa zone de confort"}],good:0,gr:"✅ Abraham obéit et partit ! Il ne savait pas où il allait mais il faisait confiance à Dieu. C'est ça la vraie foi !",br:"❌ Si Abraham n'était pas parti, il ne serait jamais devenu le père de la foi ! Dieu appelle souvent vers l'inconnu."},
-    {em:"⭐",sc:"La promesse d'un fils",narr:"Abraham et Sara étaient très vieux et n'avaient pas d'enfant. Dieu leur promit un fils. Sara rit en l'entendant car elle avait 90 ans !",ch:[{ic:"🙏",txt:"Croire que rien n'est impossible à Dieu"},{ic:"😅",txt:"Rire et ne pas croire"}],good:0,gr:"✅ Dieu dit : Y a-t-il quelque chose de trop difficile pour moi ? Un an plus tard, Sara donna naissance à Isaac ! Avec Dieu tout est possible !",br:"❌ Sara rit d'abord mais Dieu accomplit sa promesse. Rien n'est trop difficile pour Dieu !"},
-    {em:"🔥",sc:"Le sacrifice d'Isaac",narr:"Pour tester la foi d'Abraham, Dieu lui demanda d'offrir son fils Isaac en sacrifice. Abraham obéit avec douleur mais fit confiance à Dieu.",ch:[{ic:"💪",txt:"Faire confiance à Dieu jusqu'au bout"},{ic:"😤",txt:"Refuser et désobéir"}],good:0,gr:"🎉 Dieu envoya un ange qui arrêta Abraham ! Il avait préparé un bélier. Dieu ne voulait que voir la foi d'Abraham. La confiance totale en Dieu est toujours récompensée !",br:"❌ Abraham fit confiance et Dieu intervint au bon moment. La confiance totale en Dieu est toujours récompensée !"}
-  ]},
-  {id:"joseph",title:"Joseph et ses Frères",sub:"Le pardon qui guérit",em:"🌈",color:"sc5",steps:[
-    {em:"👕",sc:"La tunique de Joseph",narr:"Joseph était le fils préféré de Jacob. Son père lui donna une belle tunique de plusieurs couleurs. Ses frères étaient jaloux.",ch:[{ic:"😊",txt:"Être reconnaissant sans se vanter"},{ic:"😤",txt:"Se vanter de l'amour du père"}],good:0,gr:"✅ La gratitude sans orgueil est une grande sagesse. Joseph avait des dons mais devait apprendre l'humilité à travers les épreuves.",br:"❌ La jalousie des frères venait aussi de l'attitude de Joseph. L'humilité est toujours plus sage que l'orgueil."},
-    {em:"⛓️",sc:"Vendu comme esclave",narr:"Les frères de Joseph le vendirent à des marchands qui l'emmenèrent en Égypte. Joseph se retrouva esclave dans la maison de Potiphar.",ch:[{ic:"🙏",txt:"Garder la foi même dans l'adversité"},{ic:"😡",txt:"Se révolter et abandonner Dieu"}],good:0,gr:"✅ Joseph garda sa foi ! Dieu était avec lui même dans l'esclavage. Ses épreuves faisaient partie d'un plus grand plan de Dieu.",br:"❌ Joseph aurait pu s'effondrer mais il choisit la foi. Les épreuves ne sont pas la fin mais le début d'une plus grande histoire !"},
-    {em:"👑",sc:"Joseph Gouverneur d'Égypte",narr:"Joseph fut nommé gouverneur d'Égypte. Quand la famine vint, ses frères vinrent en Égypte. Joseph se révéla à eux en pleurant.",ch:[{ic:"💝",txt:"Pardonner à ses frères qui l'ont trahi"},{ic:"😠",txt:"Se venger de ses frères"}],good:0,gr:"🎉 Joseph dit en pleurant : C'est Dieu qui m'a envoyé ici pour sauver des vies ! Le pardon de Joseph a sauvé toute sa famille. Le pardon guérit tout !",br:"❌ La vengeance aurait tout détruit. Le pardon de Joseph a montré la grandeur de Dieu."}
-  ]},
-  {id:"moise",title:"Moïse et la Mer Rouge",sub:"La délivrance d'Israël",em:"⚡",color:"sc6",steps:[
-    {em:"🔥",sc:"Le Buisson ardent !",narr:"Moïse gardait les moutons dans le désert. Soudain un buisson brûlait sans se consumer ! Dieu lui parla : Va dire au Pharaon : Laisse partir mon peuple !",ch:[{ic:"👣",txt:"S'approcher et écouter Dieu"},{ic:"🏃",txt:"Fuir sans regarder"}],good:0,gr:"✅ Moïse s'approcha avec respect. Dieu lui confia la mission de libérer son peuple de l'esclavage en Égypte !",br:"❌ Moïse devait écouter Dieu. C'est un moment qui allait changer l'histoire !"},
-    {em:"🌊",sc:"La Mer Rouge !",narr:"L'armée du Pharaon poursuivait le peuple. Devant eux : la mer Rouge ! Le peuple avait peur et criait.",ch:[{ic:"🙏",txt:"Lever son bâton et faire confiance à Dieu"},{ic:"😭",txt:"Retourner en esclavage"}],good:0,gr:"✅ Moïse leva son bâton ! La mer s'ouvrit en deux ! Tout le peuple passa à pied sec. L'armée du Pharaon fut engloutie. Dieu seul peut faire ça !",br:"❌ Retourner en esclavage n'est jamais la solution ! Dieu avait une issue même quand tout semblait impossible."},
-    {em:"🎶",sc:"Le chant de victoire !",narr:"De l'autre côté, tout le peuple chanta et dansa pour glorifier Dieu ! Miriam prit son tambourin et mena la communauté dans la louange.",ch:[{ic:"🎵",txt:"Chanter et danser pour remercier Dieu"},{ic:"😐",txt:"Continuer sans remercier"}],good:0,gr:"🎉 Chantons à l'Éternel car il a fait de grandes choses ! La gratitude après la délivrance est une offrande précieuse à Dieu !",br:"❌ Il faut toujours remercier Dieu pour ses bienfaits. La gratitude ouvre la porte à d'autres bénédictions !"}
-  ]},
-  {id:"josue",title:"Josué et Jéricho",sub:"La victoire par la foi",em:"🏰",color:"sc8",steps:[
-    {em:"🏰",sc:"Les murs de Jéricho",narr:"Josué devait conquérir Jéricho. Dieu lui donna un plan bizarre : marcher autour de la ville pendant 7 jours et crier !",ch:[{ic:"🚶",txt:"Obéir à ce plan de Dieu"},{ic:"⚔️",txt:"Attaquer avec des armes normales"}],good:0,gr:"✅ Josué obéit ! Parfois Dieu donne des plans qui semblent fous. Mais son plan fonctionne toujours mieux que le nôtre !",br:"❌ Une attaque normale aurait échoué. Dieu voulait que la victoire soit clairement la sienne !"},
-    {em:"📯",sc:"Les trompettes sonnent !",narr:"Pendant 6 jours ils marchèrent en silence. Le 7ème jour, les prêtres sonnèrent des trompettes et tout le peuple poussa un grand cri !",ch:[{ic:"📢",txt:"Crier fort avec toute sa foi !"},{ic:"🤫",txt:"Rester silencieux par peur du ridicule"}],good:0,gr:"✅ Ils crièrent et les murs s'effondrèrent ! La foi exprimée est une force. Ne garde pas ta foi en silence !",br:"❌ Dieu avait dit de crier. C'est ce cri de foi qui fit tomber les murs !"},
-    {em:"🏆",sc:"La victoire !",narr:"Les murs de Jéricho tombèrent ! Toute l'armée d'Israël entra dans la ville. Dieu avait donné la victoire par un moyen miraculeux.",ch:[{ic:"🙌",txt:"Glorifier Dieu pour cette victoire"},{ic:"😤",txt:"Dire que c'est notre mérite"}],good:0,gr:"🎉 La gloire revient à Dieu ! Quand il nous donne la victoire, rappelons-nous que c'est lui qui agit. Notre rôle c'est d'obéir et de lui faire confiance !",br:"❌ S'attribuer la gloire de Dieu est dangereux. Reconnaître que c'est Dieu qui agit nous garde dans l'humilité."}
-  ]},
-  {id:"ruth",title:"Ruth la Fidèle",sub:"La loyauté récompensée",em:"🌾",color:"sc10",steps:[
-    {em:"😢",sc:"Le deuil de Naomi",narr:"Naomi perdit son mari et ses deux fils. Elle dit à ses belles-filles de retourner chez leurs familles. Orpa repartit mais Ruth refusa.",ch:[{ic:"❤️",txt:"Rester fidèle comme Ruth"},{ic:"👋",txt:"Partir comme Orpa"}],good:0,gr:"✅ Ruth dit : Où tu iras, j'irai. Ton Dieu sera mon Dieu ! La fidélité dans les moments difficiles est le plus beau des cadeaux.",br:"❌ Orpa fit le choix facile. Mais Ruth fit le bon choix. La fidélité est toujours récompensée par Dieu."},
-    {em:"🌾",sc:"Dans les champs de Boaz",narr:"Ruth alla glaner dans les champs pour nourrir Naomi. Elle travailla dur sans se plaindre. Boaz le propriétaire remarqua sa gentillesse.",ch:[{ic:"💪",txt:"Travailler dur et honnêtement"},{ic:"😴",txt:"Être paresseux et se plaindre"}],good:0,gr:"✅ Boaz protégea Ruth et lui donna à manger en abondance ! Le travail honnête et la gentillesse attirent les bénédictions de Dieu.",br:"❌ La paresse et les plaintes ne mènent nulle part. Ruth travailla avec diligence et Dieu lui envoya sa bénédiction."},
-    {em:"💍",sc:"La bénédiction de Dieu",narr:"Boaz épousa Ruth. Ils eurent un fils Obed qui fut le grand-père du roi David. Ruth étrangère fut intégrée dans la lignée de Jésus !",ch:[{ic:"🙌",txt:"Voir la main de Dieu dans les détails"},{ic:"😐",txt:"Trouver ça ordinaire"}],good:0,gr:"🎉 Dieu écrit la plus belle des histoires ! Ruth ne savait pas qu'elle allait faire partie de la généalogie de Jésus. Dieu récompense toujours la fidélité et l'amour !",br:"❌ Rien n'est ordinaire avec Dieu ! Chaque acte de fidélité est vu par lui et peut changer le cours de l'histoire."}
-  ]},
-  {id:"samuel",title:"Samuel l'Enfant de Dieu",sub:"L'appel de Samuel",em:"👂",color:"sc11",steps:[
-    {em:"🙏",sc:"La prière d'Anne",narr:"Anne n'avait pas d'enfant et pleurait beaucoup. Elle pria Dieu avec toutes ses forces en promettant : Si tu me donnes un fils je te le consacrerai !",ch:[{ic:"🙏",txt:"Prier avec foi et persévérance"},{ic:"😔",txt:"Abandonner et ne plus espérer"}],good:0,gr:"✅ Dieu entendit Anne ! Elle donna naissance à Samuel. La prière persistante touche le cœur de Dieu. Ne cesse jamais de prier !",br:"❌ Anne aurait pu abandonner mais elle persévéra. La prière fervente est toujours entendue par Dieu !"},
-    {em:"👂",sc:"La voix de Dieu",narr:"La nuit Samuel entendit une voix l'appeler. Il courut chez Éli trois fois. Éli comprit que c'était Dieu et dit : Réponds, ton serviteur écoute !",ch:[{ic:"🗣️",txt:"Dire : Parle Seigneur j'écoute !"},{ic:"🙈",txt:"Ignorer la voix de Dieu"}],good:0,gr:"✅ Samuel répondit à Dieu avec humilité ! Être disponible pour entendre Dieu est la clé d'une belle vie. Dieu parle encore aujourd'hui !",br:"❌ Ignorer la voix de Dieu c'est passer à côté de sa destinée. Il a un message personnel pour chacun de nous !"},
-    {em:"👑",sc:"Samuel le prophète",narr:"Samuel grandit et devint le grand prophète d'Israël. Il oignit Saül puis David comme rois. Sa vie entière fut consacrée à Dieu.",ch:[{ic:"✅",txt:"Rester fidèle à sa consécration à Dieu"},{ic:"🌍",txt:"Se laisser emporter par le monde"}],good:0,gr:"🎉 Samuel resta fidèle toute sa vie ! La consécration à Dieu depuis l'enfance est un trésor précieux. Ce que tu donnes à Dieu jeune il le multipliera !",br:"❌ Le monde attire mais ne donne pas la vraie satisfaction. Samuel choisit Dieu et devint l'un des plus grands prophètes d'Israël !"}
-  ]},
-  {id:"david",title:"David et Goliath",sub:"La foi contre la peur",em:"🗡️",color:"sc10",steps:[
-    {em:"😤",sc:"Le géant Goliath !",narr:"Goliath, géant de 3 mètres, défiait Israël depuis 40 jours. Tous les soldats avaient peur. David jeune berger arriva au camp.",ch:[{ic:"🦁",txt:"Avoir du courage comme David"},{ic:"😨",txt:"Trembler de peur comme les soldats"}],good:0,gr:"✅ David dit : Qui est cet homme pour défier l'armée du Dieu vivant ? La vraie bravoure vient de savoir que Dieu est avec nous !",br:"❌ La peur paralyse. David ne laissa pas la peur le contrôler. Il savait que Dieu était plus grand que Goliath !"},
-    {em:"🪨",sc:"Le combat !",narr:"David s'approcha de Goliath avec 5 pierres et sa fronde. Il cria : Je viens à toi au nom de l'Éternel ! Il lança... BOUM ! La pierre frappa au front. Goliath tomba !",ch:[{ic:"🙏",txt:"Avancer au nom du Seigneur !"},{ic:"🏃",txt:"Fuir à la dernière minute"}],good:0,gr:"✅ La foi en action fait des miracles ! David n'avait qu'une pierre mais il avait Dieu. Et Dieu est toujours plus grand que n'importe quel géant !",br:"❌ Fuir à la dernière minute prive de la victoire. La foi doit aller jusqu'au bout !"},
-    {em:"🏆",sc:"La victoire !",narr:"Toute l'armée des Philistins prit la fuite. David remporta la victoire au nom de Dieu. C'est la foi, pas les armes qui avait gagné !",ch:[{ic:"🙌",txt:"Glorifier Dieu pour la victoire"},{ic:"😤",txt:"S'attribuer tout le mérite"}],good:0,gr:"🎉 Ce combat est au Seigneur ! La victoire de David montre que Dieu peut utiliser n'importe qui pour de grandes choses. Il suffit d'avoir la foi !",br:"❌ La gloire revient à Dieu ! C'est lui qui a guidé la pierre. L'humilité après la victoire nous garde dans sa bénédiction."}
-  ]},
-  {id:"daniel",title:"Daniel et les Lions",sub:"La foi face à la mort",em:"🦁",color:"sc3",steps:[
-    {em:"📖",sc:"Daniel fidèle à Dieu",narr:"Daniel était à Babylone mais il priait Dieu 3 fois par jour. Ses ennemis convainquirent le roi de signer une loi interdisant la prière.",ch:[{ic:"🙏",txt:"Continuer à prier malgré l'interdiction"},{ic:"🙈",txt:"Arrêter de prier par peur"}],good:0,gr:"✅ Daniel continua à prier comme avant ! Sa fidélité à Dieu était plus importante que sa sécurité. La vraie foi ne se cache pas !",br:"❌ Arrêter de prier par peur c'est abandonner Dieu dans les moments difficiles. Daniel choisit Dieu plutôt que sa sécurité !"},
-    {em:"⛓️",sc:"Dans la fosse aux lions !",narr:"Daniel fut arrêté et jeté dans la fosse aux lions. Le roi Darius ne dormit pas de la nuit tellement il était inquiet pour Daniel.",ch:[{ic:"😇",txt:"Garder la paix et faire confiance à Dieu"},{ic:"😱",txt:"Paniquer et crier"}],good:0,gr:"✅ Daniel avait la paix ! Le matin le roi courut à la fosse et cria : Daniel ton Dieu t'a-t-il délivré ? OUI ! Dieu avait fermé la gueule des lions !",br:"❌ La panique ne change pas la situation. Daniel savait que son Dieu était plus puissant que tous les lions !"},
-    {em:"🦁",sc:"Les lions apprivoisés !",narr:"Dieu envoya son ange qui ferma la gueule des lions. Daniel n'avait aucune blessure ! Le roi Darius déclara que tous devaient craindre le Dieu de Daniel !",ch:[{ic:"🙌",txt:"Voir comment Dieu est glorifié"},{ic:"😐",txt:"Penser que c'est une coïncidence"}],good:0,gr:"🎉 Dieu utilisa l'épreuve de Daniel pour convertir un roi entier ! Ce n'est pas une coïncidence mais un miracle. Ta fidélité a un impact que tu ne peux pas imaginer !",br:"❌ Dieu protège ceux qui lui restent fidèles. Et il utilise leur témoignage pour toucher des nations entières !"}
-  ]},
-  {id:"jonas",title:"Jonas et le Grand Poisson",sub:"Obéir à Dieu",em:"🐳",color:"sc4",steps:[
-    {em:"😰",sc:"La mission difficile",narr:"Dieu dit à Jonas : Va à Ninive annoncer mon message ! Mais Jonas n'aimait pas les habitants de Ninive et monta sur un bateau pour fuir.",ch:[{ic:"🛳️",txt:"Monter sur le bateau pour fuir"},{ic:"🚶",txt:"Obéir et aller à Ninive"}],good:1,gr:"✅ Jonas fuit d'abord pour apprendre une leçon précieuse sur l'obéissance à Dieu !",br:"❌ Jonas prit le bateau pour fuir. Peut-on vraiment fuir Dieu ? La suite va nous l'apprendre !"},
-    {em:"🐳",sc:"Dans le ventre du poisson",narr:"Dieu envoya une tempête. Jonas fut jeté à la mer et un grand poisson l'avala ! Il passa 3 jours et 3 nuits dans le ventre du poisson.",ch:[{ic:"🙏",txt:"Prier et demander pardon à Dieu"},{ic:"😡",txt:"Se mettre en colère contre Dieu"}],good:0,gr:"✅ Jonas pria de tout son cœur. Dieu entendit et le poisson le recracha sur la terre ferme ! Jamais trop loin pour être sauvé !",br:"❌ La colère contre Dieu dans les épreuves éloigne. Jonas comprit qu'il devait revenir vers Dieu."},
-    {em:"🏙️",sc:"Ninive se repent !",narr:"Jonas alla enfin à Ninive. Toute la ville se repentit du roi jusqu'au plus petit ! Dieu leur pardonna. Jonas apprit la miséricorde.",ch:[{ic:"😊",txt:"Se réjouir que Dieu pardonne"},{ic:"😠",txt:"Être jaloux de la miséricorde de Dieu"}],good:0,gr:"🎉 La miséricorde de Dieu est pour tout le monde ! Jonas apprit que Dieu aime tous les hommes même ses ennemis. La grâce de Dieu n'a pas de limites !",br:"❌ Jonas fut jaloux que Dieu pardonne. Mais la miséricorde de Dieu est infinie. Réjouissons-nous quand quelqu'un se repent !"}
-  ]},
-  {id:"esther",title:"Esther la Courageuse",sub:"Née pour ce moment-là",em:"👸",color:"sc5",steps:[
-    {em:"👑",sc:"La reine Esther",narr:"Esther jeune juive orpheline devint reine de Perse. Son cousin Mardochée lui révéla un complot pour tuer tous les juifs planifié par Haman.",ch:[{ic:"💪",txt:"Trouver le courage d'agir"},{ic:"😨",txt:"Se cacher et ne rien faire"}],good:0,gr:"✅ Mardochée dit : Qui sait si ce n'est pas pour un temps comme celui-ci que tu es devenue reine ! Dieu nous place au bon endroit au bon moment.",br:"❌ Se cacher aurait condamné tout son peuple. Esther comprit que sa position avait un but plus grand qu'elle-même."},
-    {em:"🚪",sc:"Entrer chez le roi",narr:"Entrer chez le roi sans invitation était passible de mort. Esther dit : Si je dois mourir je mourrai ! Elle jeûna 3 jours et entra chez le roi.",ch:[{ic:"😇",txt:"Jeûner, prier et agir avec foi"},{ic:"🏃",txt:"Fuir par peur de mourir"}],good:0,gr:"✅ Le roi tendit son sceptre à Esther ! La prière et le jeûne avant une action importante attirent la faveur de Dieu.",br:"❌ La peur de la mort ne doit pas être plus grande que l'amour de son peuple. Esther choisit le courage !"},
-    {em:"✅",sc:"Le complot déjoué !",narr:"Esther révéla le complot d'Haman au roi. Le méchant Haman fut puni et les juifs furent sauvés ! La fête de Pourim célèbre encore cette délivrance.",ch:[{ic:"🙌",txt:"Voir comment Dieu honore le courage"},{ic:"😐",txt:"Penser que c'était de la chance"}],good:0,gr:"🎉 Dieu honore ceux qui prennent des risques pour lui ! Esther est devenue l'une des plus grandes héroïnes de la Bible. Ton courage peut sauver des générations !",br:"❌ Ce n'était pas de la chance mais la main de Dieu ! Il place les bonnes personnes aux bons endroits au bon moment !"}
-  ]},
-  {id:"elie",title:"Élie le Prophète de Feu",sub:"Dieu répond par le feu",em:"🔥",color:"sc2",steps:[
-    {em:"🔥",sc:"Le défi sur le Mont Carmel",narr:"Élie défia 450 prophètes de Baal. Chaque camp devait appeler son dieu pour faire descendre le feu sur un sacrifice. Les faux prophètes crièrent toute la journée... rien !",ch:[{ic:"🙏",txt:"Prier simplement à Dieu qui répond"},{ic:"😤",txt:"Crier fort comme les faux prophètes"}],good:0,gr:"✅ Élie pria simplement : Seigneur fais descendre ton feu ! Le feu de Dieu descendit et consuma tout même l'eau ! Dieu n'a pas besoin de nos cris juste de notre foi.",br:"❌ Les faux dieux ne répondent pas. Seul le vrai Dieu répond ! La vraie prière est simple mais sincère."},
-    {em:"🌬️",sc:"La voix douce et suave",narr:"Après sa victoire Élie se retrouva seul et découragé. Dieu lui apparut non pas dans le vent ni dans le feu mais dans une voix douce et suave.",ch:[{ic:"🤫",txt:"Chercher Dieu dans le silence"},{ic:"📢",txt:"Chercher Dieu seulement dans le spectaculaire"}],good:0,gr:"🎉 Dieu parle souvent dans le calme ! Après les grandes victoires Dieu nous invite au repos et au silence. Prends du temps dans le silence avec Dieu !",br:"❌ Dieu n'est pas seulement dans les miracles spectaculaires. Il est aussi dans le murmure doux. Apprends à l'écouter dans le silence !"},
-    {em:"🌟",sc:"La relève d'Élisée",narr:"Dieu dit à Élie d'oindre Élisée comme prophète à sa place. Élie ne travaillerait plus seul ! Dieu prépare toujours la relève.",ch:[{ic:"🤝",txt:"Former et préparer la relève"},{ic:"😤",txt:"Vouloir tout faire seul"}],good:0,gr:"✅ Élie forma Élisée qui accomplit encore plus de miracles que lui ! Former les autres c'est multiplier son impact. Dieu veut que nous formions la prochaine génération !",br:"❌ Travailler seul est une erreur. Élie l'avait cru mais Dieu lui rappela qu'il n'était pas seul et qu'il fallait préparer la relève."}
-  ]},
-  {id:"nehemie",title:"Néhémie Rebâtit les Murs",sub:"Prier et agir",em:"🏗️",color:"sc6",steps:[
-    {em:"😢",sc:"Les murs en ruines",narr:"Néhémie apprit que les murs de Jérusalem étaient détruits. Il pleura, jeûna et pria pendant plusieurs jours avant de demander quoi que ce soit au roi.",ch:[{ic:"🙏",txt:"Prier d'abord avant d'agir"},{ic:"⚡",txt:"Agir immédiatement sans prier"}],good:0,gr:"✅ La prière avant l'action est la clé du succès ! Quand nous mettons la prière avant nos projets Dieu ouvre les portes impossibles.",br:"❌ Agir sans prier c'est avancer sans boussole. Néhémie pria d'abord et Dieu lui ouvrit toutes les portes !"},
-    {em:"🏗️",sc:"Malgré les opposants",narr:"Quand Néhémie commença à reconstruire, des ennemis se moquèrent et menacèrent. Mais il dit : Le Dieu des cieux nous accordera le succès !",ch:[{ic:"🔨",txt:"Continuer malgré les moqueries"},{ic:"😔",txt:"Arrêter face aux critiques"}],good:0,gr:"✅ Néhémie et son équipe travaillèrent avec persévérance et vigilance ! Les clés pour accomplir le travail de Dieu.",br:"❌ Les critiques ne doivent pas arrêter le travail de Dieu. Néhémie répondit aux moqueries par le travail et la prière !"},
-    {em:"🎊",sc:"Les murs rebâtis en 52 jours !",narr:"Les murs de Jérusalem semblaient impossibles à reconstruire. Ils furent terminés en seulement 52 jours ! Tous les ennemis reconnurent que c'était l'œuvre de Dieu.",ch:[{ic:"🙌",txt:"Donner toute la gloire à Dieu"},{ic:"😤",txt:"Se vanter de sa propre réussite"}],good:0,gr:"🎉 Même les ennemis reconnurent que c'était l'œuvre de Dieu ! Quand nos projets glorifient Dieu il les accélère de façon miraculeuse. 52 jours pour l'impossible !",br:"❌ Sans Dieu les murs n'auraient pas été reconstruits. La gloire lui revient entièrement quand il nous aide à accomplir l'impossible !"}
-  ]},
-  {id:"psaumes",title:"Les Psaumes de David",sub:"Prier avec le cœur",em:"🎵",color:"sc7",steps:[
-    {em:"🎵",sc:"Louange dans la joie",narr:"David exprimait sa joie à Dieu en musique et en chant. Le Psaume 23 dit : L'Éternel est mon berger je ne manquerai de rien.",ch:[{ic:"🎶",txt:"Louer Dieu même dans les bons moments"},{ic:"😐",txt:"Oublier Dieu quand tout va bien"}],good:0,gr:"✅ Louer Dieu dans la joie est si important ! David pensait à Dieu dans tous les moments de sa vie. C'est ça une vraie relation avec Dieu !",br:"❌ Oublier Dieu dans la bonne saison crée un éloignement. David cherchait Dieu en permanence."},
-    {em:"😢",sc:"Crier à Dieu dans la douleur",narr:"David criait aussi à Dieu dans ses douleurs : Pourquoi m'as-tu abandonné ? Il était honnête avec Dieu.",ch:[{ic:"💬",txt:"Être honnête avec Dieu même dans la douleur"},{ic:"🤐",txt:"Cacher ses souffrances à Dieu"}],good:0,gr:"✅ Dieu accueille nos cris de douleur ! Être honnête avec Dieu dans la souffrance est une forme de foi. Il préfère nos larmes sincères aux prières superficielles.",br:"❌ Cacher ses souffrances à Dieu crée une distance. Parle-lui avec honnêteté comme à un père aimant !"},
-    {em:"⭐",sc:"La confiance totale",narr:"Malgré toutes ses épreuves David revenait toujours à la confiance : Je t'aimerai Éternel ma force ! Tu es mon rocher et ma forteresse !",ch:[{ic:"🙏",txt:"Revenir à la confiance en Dieu après les épreuves"},{ic:"😡",txt:"Rester en colère contre Dieu"}],good:0,gr:"🎉 La vraie foi revient toujours à la confiance ! David traversa des vallées sombres mais revenait toujours vers la lumière de Dieu. Notre espérance est en Lui !",br:"❌ La colère contre Dieu ferme notre cœur à ses bénédictions. Même dans la plus grande douleur revenons à sa grâce !"}
-  ]},
-  {id:"isaia",title:"Isaïe le Prophète",sub:"La vision de Dieu",em:"📢",color:"sc9",steps:[
-    {em:"✨",sc:"La vision d'Isaïe",narr:"Isaïe vit une vision : Dieu sur son trône entouré de séraphins qui criaient : Saint Saint Saint est l'Éternel ! Isaïe dit : Malheur à moi je suis perdu !",ch:[{ic:"😇",txt:"Reconnaître sa propre impureté devant Dieu"},{ic:"😤",txt:"Penser être assez bon pour Dieu"}],good:0,gr:"✅ Reconnaître qu'on n'est pas parfait devant Dieu est la porte de la grâce ! Isaïe humilia son cœur et Dieu le purifia. Dieu purifie ceux qui viennent à lui humblement.",br:"❌ Penser être assez bon sans la grâce de Dieu est une illusion. Isaïe vit la sainteté de Dieu et comprit qu'il avait besoin de sa purification."},
-    {em:"📢",sc:"La mission d'Isaïe",narr:"Après la purification Dieu dit : Qui enverrai-je ? Isaïe répondit immédiatement : Me voici envoie-moi ! Il accepta une mission difficile.",ch:[{ic:"✋",txt:"Dire : Me voici Seigneur envoie-moi !"},{ic:"🙈",txt:"Se cacher et faire semblant de ne pas entendre"}],good:0,gr:"✅ La disponibilité est la première qualité du serviteur de Dieu ! Isaïe dit oui et devint l'un des plus grands prophètes de l'histoire !",br:"❌ Se cacher de l'appel de Dieu c'est passer à côté de sa destinée. Isaïe dit oui et devint un prophète exceptionnel !"},
-    {em:"💝",sc:"La prophétie du Sauveur",narr:"Isaïe prophétisa 700 ans avant Jésus : Une vierge concevra et enfantera un fils et on l'appellera Emmanuel ! Il a porté nos douleurs.",ch:[{ic:"🙌",txt:"Voir que Jésus accomplit ces prophéties"},{ic:"🤔",txt:"Douter des prophéties"}],good:0,gr:"🎉 Jésus est l'accomplissement parfait des prophéties d'Isaïe ! La Bible est cohérente de l'Ancien au Nouveau Testament. Dieu planifiait la venue de Jésus depuis le début !",br:"❌ Les prophéties d'Isaïe se sont toutes accomplies en Jésus ! C'est une preuve que la Bible est la Parole de Dieu."}
-  ]},
-  {id:"salomon",title:"La Sagesse de Salomon",sub:"Demander la sagesse",em:"👑",color:"sc1",steps:[
-    {em:"💤",sc:"Le rêve de Salomon",narr:"Salomon devint roi après David. Dieu lui apparut en rêve et dit : Que veux-tu que je te donne ? Salomon aurait pu demander richesse ou gloire.",ch:[{ic:"🧠",txt:"Demander la sagesse pour gouverner"},{ic:"💰",txt:"Demander richesse et honneur"}],good:0,gr:"✅ Salomon demanda la sagesse ! Dieu fut tellement content qu'il lui donna la sagesse ET les richesses ET la gloire ! Cherche la sagesse et tout le reste viendra.",br:"❌ Les richesses sans sagesse mènent à la destruction. Salomon fit le meilleur choix en demandant la sagesse."},
-    {em:"⚖️",sc:"Le jugement de Salomon",narr:"Deux femmes disputaient un bébé chacune disant être la mère. Salomon dit : Coupons le bébé en deux ! La vraie mère cria : Non ! Donne-le à l'autre !",ch:[{ic:"💡",txt:"Comprendre que c'est la vraie mère"},{ic:"🤔",txt:"Ne pas comprendre le test"}],good:0,gr:"✅ Salomon donna le bébé à la vraie mère ! Sa sagesse lui permit de voir la vérité. La sagesse de Dieu surpasse toute intelligence !",br:"❌ La sagesse de Dieu voit ce que les yeux humains ne voient pas. Voilà pourquoi il faut toujours demander la sagesse d'en haut !"},
-    {em:"🏛️",sc:"Le Temple de Dieu",narr:"Salomon construisit le magnifique Temple de Jérusalem pour honorer Dieu. Ce fut l'œuvre la plus grande de sa vie.",ch:[{ic:"❤️",txt:"Rester fidèle à Dieu jusqu'à la fin"},{ic:"😔",txt:"S'éloigner de Dieu avec l'âge"}],good:0,gr:"🎉 La fidélité jusqu'à la fin est le plus grand accomplissement ! Reste fidèle à Dieu dès ta jeunesse et toute ta vie. C'est le meilleur héritage qu'on puisse laisser !",br:"❌ Salomon eut des regrets à la fin. Reste fidèle à Dieu dès ta jeunesse et toute ta vie !"}
-  ]}
-];
-
-const NT_STORIES=[
-  {id:"naissance",title:"La Naissance de Jésus",sub:"Dieu vient sur terre",em:"⭐",color:"sc1",steps:[
-    {em:"👼",sc:"L'annonce de l'ange",narr:"L'ange Gabriel apparut à Marie : Tu vas concevoir et enfanter un fils. Tu lui donneras le nom de Jésus. Il sera appelé Fils du Très-Haut ! Marie accepta avec foi.",ch:[{ic:"😇",txt:"Dire oui à Dieu comme Marie"},{ic:"😨",txt:"Refuser par peur"}],good:0,gr:"✅ Marie dit : Qu'il me soit fait selon ta parole ! L'obéissance de Marie a changé le monde entier. Quand Dieu nous confie une mission disons oui !",br:"❌ Dire non à Dieu par peur c'est passer à côté de la plus grande aventure. Marie accepta et devint la mère du Sauveur !"},
-    {em:"⭐",sc:"La nuit de Noël",narr:"Marie et Joseph durent voyager vers Bethléem. Il n'y avait pas de place dans les auberges. Jésus naquit dans une étable et fut couché dans une mangeoire.",ch:[{ic:"💝",txt:"Voir la beauté dans la simplicité"},{ic:"😔",txt:"Trouver ça indigne du Fils de Dieu"}],good:0,gr:"✅ Le Roi des rois choisit l'humilité ! Jésus aurait pu naître dans un palais mais Dieu choisit l'étable. La grandeur vient du service pas de la gloire.",br:"❌ L'étable n'était pas indigne c'était le choix de Dieu ! L'humilité de Jésus dès sa naissance nous enseigne que la vraie grandeur vient du service."},
-    {em:"👑",sc:"Les bergers et les mages",narr:"Des anges annoncèrent la bonne nouvelle aux bergers. Des mages vinrent d'Orient en suivant une étoile. Ils apportèrent de l'or de l'encens et de la myrrhe.",ch:[{ic:"🎁",txt:"Apporter ses offrandes à Jésus"},{ic:"😐",txt:"Ne rien apporter"}],good:0,gr:"🎉 Les mages offrirent leurs trésors à Jésus ! Qu'as-tu à lui offrir ? Ton temps ton talent ton cœur ? Le plus beau cadeau pour Jésus c'est notre vie entière !",br:"❌ Les mages firent un long voyage pour apporter leurs trésors. Que sommes-nous prêts à donner à Jésus ?"}
-  ]},
-  {id:"miracles",title:"Les Miracles de Jésus",sub:"La puissance de la foi",em:"✨",color:"sc5",steps:[
-    {em:"🍞",sc:"Multiplication des pains",narr:"5000 personnes avaient faim dans le désert. Un garçon donna ses 5 pains et 2 poissons. Jésus les bénit et les distribua. Tous mangèrent et il resta 12 paniers !",ch:[{ic:"🎁",txt:"Donner le peu qu'on a à Jésus"},{ic:"😔",txt:"Garder pour soi par peur de manquer"}],good:0,gr:"✅ Ce petit garçon a changé l'histoire par sa générosité ! Donne ton peu à Jésus et il le multipliera. La générosité active les miracles de Dieu !",br:"❌ Garder par peur de manquer est un manque de foi. Le garçon donna tout et Jésus en fit un miracle extraordinaire !"},
-    {em:"🌊",sc:"Jésus marche sur l'eau",narr:"La nuit les disciples étaient dans un bateau sur la mer agitée. Jésus marcha sur l'eau vers eux ! Pierre voulut aussi marcher sur l'eau et commença à le faire !",ch:[{ic:"👀",txt:"Garder les yeux fixés sur Jésus"},{ic:"😰",txt:"Regarder les vagues et avoir peur"}],good:0,gr:"✅ Tant que Pierre gardait les yeux sur Jésus il marchait sur l'eau ! Dans ta vie garde les yeux sur Jésus et non sur tes problèmes !",br:"❌ Pierre commença à couler quand il regarda les vagues. Dans tes épreuves ne regarde pas tes problèmes. Regarde Jésus qui vient vers toi !"},
-    {em:"👁️",sc:"La guérison de l'aveugle",narr:"Bartimée aveugle criait fort : Jésus Fils de David aie pitié de moi ! Les gens voulaient le faire taire mais il criait encore plus fort. Jésus l'appela.",ch:[{ic:"📢",txt:"Persévérer dans la prière malgré les obstacles"},{ic:"🤐",txt:"Se taire quand les autres découragent"}],good:0,gr:"🎉 Jésus dit : Va ta foi t'a sauvé ! Il recouvra immédiatement la vue. Ne te tais pas dans ta prière ! Crie à Jésus malgré ce que les gens disent !",br:"❌ Si Bartimée s'était tu il serait resté aveugle. Ta persévérance dans la prière est une forme de foi !"}
-  ]},
-  {id:"beatitudes",title:"Les Béatitudes",sub:"Le bonheur selon Jésus",em:"😇",color:"sc4",steps:[
-    {em:"⛰️",sc:"Le sermon sur la montagne",narr:"Jésus enseigna : Heureux les pauvres en esprit car le royaume des cieux est à eux ! Heureux les débonnaires car ils hériteront la terre !",ch:[{ic:"😇",txt:"Comprendre que le bonheur vient de Dieu"},{ic:"💰",txt:"Penser que le bonheur vient des richesses"}],good:0,gr:"✅ Le vrai bonheur est en Dieu ! Les béatitudes renversent les valeurs du monde. Jésus dit : Sois humble pur pacifique et tu seras vraiment heureux !",br:"❌ Les richesses ne donnent pas le vrai bonheur. Le bonheur profond vient d'une relation avec Dieu."},
-    {em:"💡",sc:"Sel et lumière",narr:"Jésus dit : Vous êtes le sel de la terre et la lumière du monde ! On n'allume pas une lampe pour la mettre sous le boisseau mais sur le chandelier !",ch:[{ic:"🌟",txt:"Briller pour Dieu dans le monde"},{ic:"🙈",txt:"Cacher sa foi par peur"}],good:0,gr:"✅ Brille pour Jésus ! Ta vie chrétienne est une lumière que les autres voient. Ne cache pas ta foi. Tes bonnes actions peuvent conduire les autres à glorifier Dieu !",br:"❌ Cacher sa foi c'est priver le monde de lumière. Jésus nous appelle à briller là où nous sommes !"},
-    {em:"❤️",sc:"Aimez vos ennemis",narr:"Jésus dit : Aimez vos ennemis faites du bien à ceux qui vous haïssent priez pour ceux qui vous persécutent !",ch:[{ic:"💝",txt:"Choisir d'aimer même ses ennemis"},{ic:"😤",txt:"Se venger de ses ennemis"}],good:0,gr:"🎉 L'amour des ennemis est le signe des enfants de Dieu ! C'est le plus grand enseignement de Jésus et le plus difficile. Mais c'est ce qui touche les cœurs !",br:"❌ La vengeance ne répare rien. Jésus lui-même a prié pour ceux qui l'ont crucifié. L'amour des ennemis est notre témoignage le plus puissant !"}
-  ]},
-  {id:"enfant_prodigue",title:"Le Fils Prodigue",sub:"Le père qui court",em:"🏃",color:"sc7",steps:[
-    {em:"💰",sc:"Le fils qui part",narr:"Un fils demanda sa part d'héritage et s'en alla dans un pays lointain. Il gaspilla tout. Il se retrouva à garder des porcs et mourait de faim.",ch:[{ic:"😔",txt:"Comprendre les conséquences de l'éloignement de Dieu"},{ic:"😤",txt:"Penser qu'on peut faire mieux sans Dieu"}],good:0,gr:"✅ L'éloignement de Dieu mène toujours au vide ! Ce fils chercha le bonheur loin du père et trouva la misère. La vraie vie est dans la maison du Père.",br:"❌ S'éloigner de Dieu peut sembler liberté au début mais mène à la souffrance. Le père attendait le retour de son fils avec amour."},
-    {em:"🏠",sc:"Le retour",narr:"Le fils revint à lui-même et dit : Combien de serviteurs de mon père ont du pain en abondance et moi je meurs de faim ! Je me lèverai et j'irai vers mon père !",ch:[{ic:"🏃",txt:"Se lever et retourner vers le Père"},{ic:"😔",txt:"Rester dans la misère par honte"}],good:0,gr:"✅ La honte ne doit pas empêcher le retour ! Ce fils s'est levé et est retourné. Le chemin du retour vers Dieu commence par une décision. Lève-toi et reviens !",br:"❌ Rester dans la misère par honte est un piège. Le Père attend avec amour. Il n'est jamais trop tard !"},
-    {em:"💝",sc:"Le père qui court !",narr:"Quand le père vit son fils encore loin il courut vers lui l'embrassa et ordonna une grande fête ! Ce fils était perdu et il est retrouvé !",ch:[{ic:"🎉",txt:"Se réjouir avec le père pour le retour du fils"},{ic:"😤",txt:"Être jaloux comme le fils aîné"}],good:0,gr:"🎉 C'est l'image de Dieu notre Père ! Il court vers nous quand on revient à lui. Il ne nous attend pas avec des reproches mais avec des bras ouverts ! Quelle grâce !",br:"❌ La jalousie du fils aîné nous rappelle de ne pas juger ceux qui reviennent à Dieu. La fête du ciel est pour chaque pécheur qui se repent !"}
-  ]},
-  {id:"crucifixion",title:"La Crucifixion de Jésus",sub:"L'amour suprême",em:"✝️",color:"sc9",steps:[
-    {em:"🌿",sc:"Le jardin de Gethsémané",narr:"Jésus pria au jardin : Père éloigne de moi cette coupe ! Mais non pas ma volonté mais la tienne soit faite ! Il accepta de mourir pour nous.",ch:[{ic:"🙏",txt:"Comprendre le sacrifice de Jésus"},{ic:"😐",txt:"Rester indifférent à ce sacrifice"}],good:0,gr:"✅ Jésus a choisi de mourir pour toi ! Cette prière dans le jardin montre sa souffrance humaine et son obéissance divine. Il t'a aimé jusqu'à la mort.",br:"❌ Ce sacrifice n'est pas ordinaire. Le Fils de Dieu a souffert pour que tu sois libre. Cette vérité mérite toute notre attention et notre gratitude !"},
-    {em:"✝️",sc:"Sur la croix",narr:"Jésus fut cloué sur une croix. Il dit : Père pardonne-leur car ils ne savent pas ce qu'ils font. Il porta nos péchés. Puis : C'est accompli !",ch:[{ic:"💝",txt:"Recevoir ce pardon dans son cœur"},{ic:"😔",txt:"Penser ne pas mériter ce sacrifice"}],good:0,gr:"✅ C'est accompli ! Le prix de nos péchés a été payé entièrement. Reçois ce cadeau gratuit dans ton cœur. Il est mort pour toi personnellement !",br:"❌ Nous ne méritons pas ce sacrifice c'est vrai. C'est pourquoi on appelle ça la grâce ! Un cadeau qu'on ne mérite pas. Reçois-le simplement !"},
-    {em:"💔",sc:"L'amour le plus grand",narr:"Jésus mourut sur la croix. Les disciples étaient désespérés. Mais c'était le plus grand acte d'amour de l'histoire : donner sa vie pour ses amis.",ch:[{ic:"❤️",txt:"Aimer Jésus en retour de tout son cœur"},{ic:"😐",txt:"Rester indifférent à cet amour"}],good:0,gr:"🎉 Dieu a tant aimé le monde qu'il a donné son Fils unique ! Jésus t'a aimé jusqu'à la mort. La seule réponse à un tel amour c'est de lui donner notre vie entière !",br:"❌ Rester indifférent devant la croix c'est passer à côté du plus grand amour de l'histoire. Ouvre ton cœur à cet amour infini !"}
-  ]},
-  {id:"resurrection",title:"La Résurrection de Jésus",sub:"La victoire sur la mort",em:"🌅",color:"sc10",steps:[
-    {em:"🪨",sc:"Le tombeau vide",narr:"Le troisième jour des femmes allèrent au tombeau et le trouvèrent vide ! Deux anges leur dirent : Il n'est pas ici il est ressuscité comme il l'avait dit !",ch:[{ic:"🎉",txt:"Croire et se réjouir de la résurrection"},{ic:"😨",txt:"Avoir peur et douter"}],good:0,gr:"✅ Il est ressuscité ! C'est la plus grande nouvelle de l'histoire humaine ! La mort n'a pas eu le dernier mot. Jésus est vivant et cette victoire est aussi pour toi !",br:"❌ La peur et le doute empêchent de voir le miracle. La foi précède souvent la compréhension."},
-    {em:"🤝",sc:"Jésus apparaît",narr:"Jésus apparut à Marie-Madeleine qui pensait que c'était le jardinier. Quand il dit son nom : Marie ! Elle le reconnut immédiatement.",ch:[{ic:"😭",txt:"Reconnaître Jésus même dans les larmes"},{ic:"🙈",txt:"Chercher Jésus seulement dans la gloire"}],good:0,gr:"✅ Jésus appelle chacun par son nom ! Comme Marie il nous appelle personnellement. Même dans les larmes Jésus est là et il nous connaît.",br:"❌ Marie cherchait Jésus mort pas Jésus ressuscité. Parfois on cherche Dieu seulement dans ce qu'on comprend. Il est souvent là où on ne l'attend pas !"},
-    {em:"🌅",sc:"La grande mission",narr:"Jésus dit à ses disciples : Toute autorité m'a été donnée. Allez faites de toutes les nations des disciples ! Je suis avec vous jusqu'à la fin du monde !",ch:[{ic:"🌍",txt:"Accepter la mission de partager la bonne nouvelle"},{ic:"😔",txt:"Garder la bonne nouvelle pour soi"}],good:0,gr:"🎉 Il est ressuscité et nous envoie en mission ! La résurrection nous donne une mission : partager cette bonne nouvelle avec tout le monde. Il est avec nous !",br:"❌ La bonne nouvelle n'est pas pour nous seuls ! Jésus nous envoie vers les autres pour qu'ils connaissent aussi l'espérance de la vie éternelle !"}
-  ]},
-  {id:"pentecoste",title:"La Pentecôte",sub:"La naissance de l'Église",em:"🔥",color:"sc11",steps:[
-    {em:"🔥",sc:"Le feu du ciel",narr:"Cinquante jours après la résurrection les disciples étaient réunis. Soudain un vent violent remplit la maison et des langues de feu se posèrent sur chacun !",ch:[{ic:"🙌",txt:"Se réjouir de la venue du Saint-Esprit"},{ic:"😨",txt:"Avoir peur de ce phénomène"}],good:0,gr:"✅ Le Saint-Esprit est venu habiter en nous ! Cette promesse de Jésus s'est accomplie. Il nous donne la force d'être ses témoins dans le monde entier !",br:"❌ Pas de peur face au Saint-Esprit ! C'est le cadeau de Jésus ressuscité. Il vient pour nous guider nous fortifier et nous remplir de l'amour de Dieu."},
-    {em:"📢",sc:"Pierre prêche",narr:"Pierre qui avait renié Jésus trois fois prêcha maintenant avec boldness devant des milliers ! Il dit : Repentez-vous et soyez baptisés au nom de Jésus !",ch:[{ic:"💪",txt:"Être transformé par le Saint-Esprit"},{ic:"😔",txt:"Penser qu'on ne peut pas changer"}],good:0,gr:"✅ Pierre fut totalement transformé ! Celui qui avait eu peur d'une servante prêcha maintenant devant des milliers. Le Saint-Esprit transforme les personnes les plus faibles !",br:"❌ On peut toujours changer avec le Saint-Esprit ! Pierre est la preuve vivante qu'il n'y a pas de cas désespéré avec Dieu."},
-    {em:"🌍",sc:"3000 convertis !",narr:"Ce jour-là environ 3000 personnes reçurent la parole de Pierre et furent baptisées. L'Église naquit ! Ils persévéraient dans l'enseignement la communion et la prière.",ch:[{ic:"⛪",txt:"Rejoindre et aimer l'Église"},{ic:"🏃",txt:"Croire seul sans communauté"}],good:0,gr:"🎉 L'Église c'est la famille de Dieu ! Ces premiers chrétiens avaient tout en commun priaient ensemble et s'aimaient. C'est encore le modèle de l'Église aujourd'hui !",br:"❌ La foi solitaire s'affaiblit. Dieu nous a créés pour la communauté. L'Église n'est pas parfaite mais c'est la famille que Dieu nous donne !"}
-  ]}
-];
-
-// STORIES RENDER
-let currentTestament=0;
-function isATComplete(){
-  const u=getCurrentUser();if(!u)return false;
-  const done=u.storiesDone||[];
-  return AT_STORIES.every(s=>done.includes(s.id));
-}
-function switchTestament(idx){
-  if(idx===1&&!isATComplete()){toast("🔒 Termine d'abord toutes les histoires de l'Ancien Testament !");return;}
-  currentTestament=idx;
-  document.getElementById("tabAT").classList.toggle("active",idx===0);
-  document.getElementById("tabNT").classList.toggle("active",idx===1);
-  document.getElementById("storyTitle").textContent=idx===0?"📜 Ancien Testament":"✝️ Nouveau Testament";
-  renderStories();
-}
-function renderStories(){
-  const u=getCurrentUser();
-  const done=u?(u.storiesDone||[]):[];
-  const stories=currentTestament===0?AT_STORIES:NT_STORIES;
-  const grid=document.getElementById("storiesGrid");
-  grid.innerHTML="";
-  const atDone=AT_STORIES.filter(s=>done.includes(s.id)).length;
-  document.getElementById("atCount").textContent=atDone+"/"+AT_STORIES.length+" histoires";
-  if(isATComplete()){
-    document.getElementById("ntStatus").textContent="✅ Débloqué !";
-    document.getElementById("tabNT").classList.remove("locked");
-  }else{
-    document.getElementById("ntStatus").textContent="🔒 Finir l'AT d'abord";
-    document.getElementById("tabNT").classList.add("locked");
-  }
-  stories.forEach((s,idx)=>{
-    const isDone=done.includes(s.id);
-    const isLocked=idx>0&&!done.includes(stories[idx-1].id);
-    const card=document.createElement("div");
-    card.className="story-card "+s.color+(isLocked?" story-locked":"");
-    card.innerHTML=`${isDone?'<div class="done-badge">✅ Fait</div>':isLocked?'<div class="lock-badge">🔒 Bloqué</div>':'<div class="lv-badge">Niv.'+(idx+1)+'</div>'}<div class="sem">${s.em}</div><h4>${s.title}</h4><p>${s.sub}</p>`;
-    if(!isLocked)card.onclick=()=>startAdv(s);
-    grid.appendChild(card);
-  });
-}
-
-// ADVENTURE
-let curAdv=null,curStep=0;
-const GRAD_MAP={sc1:"linear-gradient(135deg,#1565C0,#0D47A1)",sc2:"linear-gradient(135deg,#4527A0,#6A1B9A)",sc3:"linear-gradient(135deg,#E65100,#BF360C)",sc4:"linear-gradient(135deg,#1B5E20,#33691E)",sc5:"linear-gradient(135deg,#880E4F,#AD1457)",sc6:"linear-gradient(135deg,#006064,#00838F)",sc7:"linear-gradient(135deg,#4E342E,#6D4C41)",sc8:"linear-gradient(135deg,#37474F,#546E7A)",sc9:"linear-gradient(135deg,#F57F17,#E65100)",sc10:"linear-gradient(135deg,#7B1FA2,#C2185B)",sc11:"linear-gradient(135deg,#00695C,#00897B)",sc12:"linear-gradient(135deg,#C62828,#E53935)"};
-function startAdv(story){
-  curAdv=story;curStep=0;
-  document.getElementById("advTitle").textContent=story.title;
-  document.getElementById("advSub").textContent=story.sub;
-  buildPDots();renderStep();
-  showScreen("adventureScreen");
-  document.querySelectorAll(".ni").forEach(n=>n.classList.remove("active"));
-}
-function buildPDots(){
-  const el=document.getElementById("pdots");el.innerHTML="";
-  curAdv.steps.forEach((_,i)=>{const d=document.createElement("div");d.className="pd"+(i===0?" cur":"");d.id="pd"+i;el.appendChild(d);});
-}
-function renderStep(){
-  const s=curAdv.steps[curStep];
-  document.getElementById("storyScene").style.background=GRAD_MAP[curAdv.color]||GRAD_MAP.sc1;
-  document.getElementById("scEm").textContent=s.em;
-  document.getElementById("scTxt").textContent=s.sc;
-  document.getElementById("narrTxt").textContent=s.narr;
-  const nb=document.getElementById("narrVbtn");nb.classList.remove("sp");nb.innerHTML="🔊 Écouter";nb.onclick=readNarr;
-  const ch=document.getElementById("choices");ch.innerHTML="";
-  s.ch.forEach((c,i)=>{
-    const b=document.createElement("button");b.className="ch-btn";
-    b.innerHTML=`<span class="ch-ic">${c.ic}</span>${c.txt}`;
-    b.onclick=()=>choiceMade(i);ch.appendChild(b);
-  });
-  document.getElementById("resBox").style.display="none";
-  document.getElementById("resVbtn").style.display="none";
-  document.getElementById("nextBtn").style.display="none";
-  setTimeout(()=>{if(voiceOn)speak(s.narr,document.getElementById("narrVbtn"));},400);
-}
-function choiceMade(idx){
-  const s=curAdv.steps[curStep];
-  document.querySelectorAll(".ch-btn").forEach(b=>b.disabled=true);
-  const isGood=idx===s.good;
-  const rb=document.getElementById("resBox");
-  rb.className="res-box "+(isGood?"good":"bad");
-  rb.innerHTML=`<h4>${isGood?"🎉 Excellent choix !":"🤔 Pas tout à fait..."}</h4>${isGood?s.gr:s.br}`;
-  rb.style.display="block";
-  document.getElementById("resVbtn").style.display="inline-flex";
-  const nb2=document.getElementById("nextBtn");nb2.style.display="block";nb2.style.position="relative";nb2.style.zIndex="20";
-  if(isGood){
-    addReward(50,10);
-    toast("🌟 +50 XP  +10 🪙");
-  } else {
-    // Perdre des points comme Duolingo
-    if(coins>=5){
-      coins-=5;
-      document.getElementById("coinCount").textContent=coins;
-      syncProgressFirebase();
-      toast("❌ -5 🪙 Lis la leçon et réessaie !");
-    } else {
-      toast("💡 Lis la leçon et continue !");
-    }
-  }
-  setTimeout(()=>{if(voiceOn)speak(rb.textContent,document.getElementById("resVbtn"));},300);
-}
-function nextStep(){
-  const od=document.getElementById("pd"+curStep);if(od)od.className="pd done";
-  curStep++;
-  if(curStep>=curAdv.steps.length){
-    if(_currentUser){
-      const done=_currentUser.storiesDone||[];
-      if(!done.includes(curAdv.id)){
-        done.push(curAdv.id);
-        _currentUser.storiesDone=done;
-        fetch('/api/progress',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({storiesDone:done,storyCompleted:curAdv.title,xp,coins})
-        }).catch(()=>{});
-      }
-    }
-    addReward(200,50);toast("🏆 Histoire terminée ! +200 XP +50 🪙");
-    logActivity("a terminé l'histoire : "+curAdv.title,200);
-    document.getElementById("storyScene").style.background=GRAD_MAP[curAdv.color];
-    document.getElementById("scEm").textContent="🏆";
-    document.getElementById("scTxt").textContent="Histoire terminée ! Bravo champion !";
-    document.getElementById("narrTxt").textContent="Tu as accompli toute cette histoire avec foi et courage ! Continue à explorer les autres histoires bibliques !";
-    document.getElementById("choices").innerHTML="";
-    document.getElementById("resBox").style.display="none";
-    document.getElementById("resVbtn").style.display="none";
-    document.getElementById("nextBtn").textContent="🏠 Retour à l'accueil";
-    document.getElementById("nextBtn").onclick=()=>{goHome();renderStories();};
-    if(voiceOn)speak("Félicitations ! Tu as terminé cette histoire avec courage et foi !");
-    return;
-  }
-  const nd=document.getElementById("pd"+curStep);if(nd)nd.className="pd cur";
-  renderStep();
-}
-
-// QUIZ
-const QBANK=[
-  {q:"🌍 Qui a créé le monde en 6 jours ?",opts:["Moïse","Abraham","Dieu","David"],a:2,fact:"Dieu créa les cieux et la terre en 6 jours. Le 7ème jour il se reposa. C'est pour ça qu'on observe le repos du sabbat !"},
-  {q:"🚢 Qui a construit l'arche pour le déluge ?",opts:["Abraham","Moïse","Samuel","Noé"],a:3,fact:"Noé construisit l'arche sur ordre de Dieu et prit deux animaux de chaque espèce pour les sauver du déluge !"},
-  {q:"🗡️ Avec quoi David a-t-il vaincu Goliath ?",opts:["Une épée","Une lance","Une fronde et une pierre","Ses mains"],a:2,fact:"David lança une seule pierre avec sa fronde. Elle frappa Goliath au front. La foi en Dieu donne la victoire !"},
-  {q:"🐳 Combien de jours Jonas était dans le poisson ?",opts:["7 jours","1 jour","40 jours","3 jours et 3 nuits"],a:3,fact:"Jonas passa 3 jours et 3 nuits dans le ventre du grand poisson avant de prier et d'être libéré !"},
-  {q:"⚡ Qui a séparé les eaux de la Mer Rouge ?",opts:["Noé","Abraham","David","Moïse"],a:3,fact:"Dieu utilisa Moïse. Il leva son bâton et les eaux s'ouvrirent. Tout le peuple passa à pied sec !"},
-  {q:"🦁 Qui a été jeté dans la fosse aux lions ?",opts:["Joseph","Élie","Daniel","Samson"],a:2,fact:"Daniel fut jeté dans la fosse aux lions car il continuait à prier Dieu. Dieu ferma la gueule des lions !"},
-  {q:"⭐ Comment s'appelle la mère de Jésus ?",opts:["Ruth","Esther","Marie","Sara"],a:2,fact:"Marie était la mère de Jésus. L'ange Gabriel lui annonça qu'elle porterait le Fils de Dieu !"},
-  {q:"🌈 Quel signe Dieu donna-t-il à Noé après le déluge ?",opts:["Une étoile","Une colombe","Un arc-en-ciel","Une montagne"],a:2,fact:"Dieu plaça un arc-en-ciel dans le ciel comme signe de sa promesse de ne plus envoyer de déluge universel !"},
-  {q:"📜 Combien de commandements Dieu donna-t-il à Moïse ?",opts:["5","7","10","12"],a:2,fact:"Dieu donna les 10 commandements à Moïse sur le mont Sinaï gravés sur deux tables de pierre !"},
-  {q:"🌅 Que fit Jésus le troisième jour après sa mort ?",opts:["Il resta au tombeau","Il apparut à ses ennemis","Il ressuscita","Il monta au ciel"],a:2,fact:"Le troisième jour Jésus ressuscita ! Les femmes trouvèrent le tombeau vide. Il est ressuscité !"},
-  {q:"🔥 Qu'arriva-t-il le jour de la Pentecôte ?",opts:["Jésus ressuscita","Un déluge tomba","Le Saint-Esprit descendit comme du feu","Moïse apparut"],a:2,fact:"Le Saint-Esprit descendit sur les disciples sous forme de langues de feu ! C'est la naissance de l'Église !"},
-  {q:"💡 Quelle est la première chose que Dieu créa ?",opts:["La terre","Les animaux","La lumière","Les hommes"],a:2,fact:"Dieu dit : Que la lumière soit ! Et la lumière fut. C'est la première chose créée lors de la Création !"},
-  {q:"⭐ Qui était le père de David ?",opts:["Noé","Abraham","Isaï","Saül"],a:2,fact:"David était le fils d'Isaï de Bethléem. Il était berger avant de devenir le plus grand roi d'Israël !"},
-  {q:"🍎 Que ne devaient pas manger Adam et Ève ?",opts:["La pomme du paradis","Le fruit de l'arbre de la connaissance","Le raisin sacré","La figue interdite"],a:1,fact:"Dieu leur interdit de manger du fruit de l'arbre de la connaissance du bien et du mal dans le jardin d'Éden."},
-  {q:"🌾 Comment s'appelle le fils de Ruth et Boaz ?",opts:["Samuel","David","Obed","Jonas"],a:2,fact:"Ruth et Boaz eurent un fils nommé Obed qui fut le grand-père du roi David et dans la lignée de Jésus !"}
-];
-let qQs=[],qIdx=0,qSc=0,qCo=0;
-function startQuiz(){
-  qQs=shuffle([...QBANK]).slice(0,5);qIdx=0;qSc=0;qCo=0;
-  document.getElementById("qScore").textContent="0";
-  document.getElementById("qCoins").textContent="0";
-  document.getElementById("qEnd").style.display="none";
-  document.getElementById("qBody").style.display="block";
-  buildQDots();renderQuiz();
-}
-function buildQDots(){
-  const el=document.getElementById("qdots");el.innerHTML="";
-  for(let i=0;i<5;i++){const d=document.createElement("div");d.className="qd"+(i===0?" cur":"");d.id="qd"+i;el.appendChild(d);}
-}
-function renderQuiz(){
-  const q=qQs[qIdx];
-  document.getElementById("qNum").textContent="Question "+(qIdx+1)+"/5";
-  const em=q.q.split(" ")[0];
-  document.getElementById("qQ").innerHTML=`<span class="qem">${em}</span>${q.q.slice(q.q.indexOf(" ")+1)}`;
-  const ow=document.getElementById("optsWrap");ow.innerHTML="";
-  ["A","B","C","D"].forEach((l,i)=>{
-    const b=document.createElement("button");b.className="opt-btn";
-    b.innerHTML=`<div class="oltr">${l}</div>${q.opts[i]}`;
-    b.onclick=()=>pickAns(i);ow.appendChild(b);
-  });
-  document.getElementById("qfb").style.display="none";
-  document.getElementById("qfbVbtn").style.display="none";
-  document.getElementById("qnext").style.display="none";
-}
-function pickAns(idx){
-  const q=qQs[qIdx];
-  document.querySelectorAll(".opt-btn").forEach(b=>b.disabled=true);
-  const btns=document.querySelectorAll(".opt-btn");
-  const ok=idx===q.a;
-  btns[idx].classList.add(ok?"correct":"wrong");
-  if(!ok)btns[q.a].classList.add("correct");
-  const fb=document.getElementById("qfb");
-  fb.className="qfb "+(ok?"good":"bad");
-  fb.innerHTML=`<h4>${ok?"🎉 Bonne réponse !":"😅 Pas tout à fait..."}</h4>${q.fact}`;
-  fb.style.display="block";
-  if(ok){qSc++;qCo+=20;document.getElementById("qScore").textContent=qSc;document.getElementById("qCoins").textContent=qCo;}
-  document.getElementById("qfbVbtn").style.display="inline-flex";
-  document.getElementById("qnext").style.display="block";
-  document.getElementById("qd"+qIdx).className="qd done";
-  setTimeout(()=>{if(voiceOn)speak(fb.textContent,document.getElementById("qfbVbtn"));},200);
-  const stats=JSON.parse(localStorage.getItem("ecodime_stats")||"{}");
-  if(qIdx===4){stats.quizDone=(stats.quizDone||0)+1;localStorage.setItem("ecodime_stats",JSON.stringify(stats));}
-}
-function nextQuiz(){
-  qIdx++;
-  if(qIdx>=5){endQuiz();return;}
-  document.getElementById("qd"+qIdx).className="qd cur";
-  renderQuiz();
-}
-function endQuiz(){
-  document.getElementById("qBody").style.display="none";
-  document.getElementById("qEnd").style.display="block";
-  addReward(qSc*30,qCo);
-  logActivity("a complété un Quiz "+qSc+"/5",qSc*30);
-  const pct=qSc/5;
-  let em="😊",ti="Bien joué !",tx="Tu as eu "+qSc+"/5. Continue à apprendre !";
-  if(pct===1){em="🏆";ti="PARFAIT !";tx="5/5 ! Champion biblique absolu !";}
-  else if(pct>=.8){em="🌟";ti="Excellent !";tx=qSc+"/5 ! Tu connais très bien la Bible !";}
-  else if(pct>=.6){em="😊";ti="Bien joué !";tx=qSc+"/5 ! Continue les aventures pour apprendre encore plus.";}
-  else{em="💪";ti="Continue !";tx=qSc+"/5. Ne te décourage pas ! Tu vas progresser !";}
-  document.getElementById("fEm").textContent=em;
-  document.getElementById("fTitle").textContent=ti;
-  document.getElementById("fTxt").textContent=tx;
-  toast("🎓 +"+qSc*30+" XP");
-  if(voiceOn)speak(ti+". "+tx);
-}
-
-// MEMORY
-const ALL_MPAIRS=[
-  {ic:"🚢",lb:"Noé"},{ic:"🐳",lb:"Jonas"},{ic:"🗡️",lb:"David"},{ic:"⚡",lb:"Moïse"},
-  {ic:"🦁",lb:"Daniel"},{ic:"🕊️",lb:"Saint-Esprit"},{ic:"🌈",lb:"Alliance"},{ic:"🙏",lb:"Prière"},
-  {ic:"⭐",lb:"Abraham"},{ic:"👑",lb:"Salomon"},{ic:"🔥",lb:"Élie"},{ic:"🌾",lb:"Ruth"},
-  {ic:"✝️",lb:"Jésus"},{ic:"📖",lb:"Bible"},{ic:"👸",lb:"Esther"},{ic:"🏗️",lb:"Néhémie"},
-  {ic:"🎵",lb:"Psaume"},{ic:"👶",lb:"Samuel"},{ic:"🌍",lb:"Création"},{ic:"💝",lb:"Amour"}
-];
-// Choisir 8 paires aléatoires à chaque partie
-function getRandomPairs(){return shuffle([...ALL_MPAIRS]).slice(0,8);}
-let MPAIRS=getRandomPairs();
-let mFlip=[],mMatch=0,mTry=0,mTmr=null,mSec=0,mLock=false;
-function initMemory(){
-  MPAIRS=getRandomPairs();
-  clearInterval(mTmr);mFlip=[];mMatch=0;mTry=0;mSec=0;mLock=false;
-  ["mTries","mPairs","mTime"].forEach((id,i)=>document.getElementById(id).textContent=i===2?"0s":"0");
-  const cards=shuffle([...MPAIRS,...MPAIRS].map((p,i)=>({...p,id:i})));
-  const g=document.getElementById("memGrid");g.innerHTML="";
-  cards.forEach(card=>{
-    const el=document.createElement("div");el.className="mc";el.dataset.lb=card.lb;
-    el.innerHTML=`<div class="mcf">❓</div><div class="mcb">${card.ic}<span>${card.lb}</span></div>`;
-    el.onclick=()=>flipCard(el);g.appendChild(el);
-  });
-  mTmr=setInterval(()=>{mSec++;document.getElementById("mTime").textContent=mSec+"s";},1000);
-}
-function flipCard(el){
-  if(mLock||el.classList.contains("fl")||el.classList.contains("mt"))return;
-  el.classList.add("fl");mFlip.push(el);
-  if(mFlip.length===2){
-    mLock=true;mTry++;document.getElementById("mTries").textContent=mTry;
-    const[a,b]=mFlip;
-    if(a.dataset.lb===b.dataset.lb){
-      a.classList.add("mt");b.classList.add("mt");mMatch++;
-      document.getElementById("mPairs").textContent=mMatch;
-      mFlip=[];mLock=false;
-      if(mMatch===8){clearInterval(mTmr);addReward(100,30);toast("🏆 Toutes les paires en "+mSec+"s ! +100 XP");}
-    }else{setTimeout(()=>{a.classList.remove("fl");b.classList.remove("fl");mFlip=[];mLock=false;},1000);}
-  }
-}
-
-// CHAT AI
-const SYS="Tu es Raphaël, assistant biblique adorable pour enfants de l'école du dimanche (5-12 ans).\n- Réponds TOUJOURS en français\n- Langage simple coloré enthousiaste emojis\n- Réponses courtes (3-4 phrases max)\n- Toujours encourageant et bienveillant\n- Si hors Bible redirige gentiment";
-let chatH=[];
-function addMsg(txt,role){
-  const c=document.getElementById("chatMsgs");
-  const d=document.createElement("div");d.className="msg "+role;
-  const av=role==="u"?"😊":"🕊️";
-  const st=role==="u"?"background:linear-gradient(135deg,#4FC3F7,#0288D1)":"background:linear-gradient(135deg,#FFD700,#FF7043)";
-  d.innerHTML=`<div class="mav" style="${st}">${av}</div><div class="mbub">${txt}</div>`;
-  c.appendChild(d);c.scrollTop=c.scrollHeight;
-}
-async function sendMsg(){
-  const inp=document.getElementById("cInp");
-  const msg=inp.value.trim();if(!msg)return;
-  inp.value="";addMsg(msg,"u");
-  document.getElementById("sBtn").disabled=true;
-  document.getElementById("typInd").classList.add("show");
-  chatH.push({role:"user",content:msg});
-  callAI(chatH,SYS,(txt)=>{
-    chatH.push({role:"assistant",content:txt});
-    document.getElementById("typInd").classList.remove("show");
-    addMsg(txt,"ai");lastAiMsg=txt;
-    if(voiceOn)setTimeout(()=>speak(txt,document.getElementById("cvBtn")),200);
-    document.getElementById("sBtn").disabled=false;
-  },()=>{
-    document.getElementById("typInd").classList.remove("show");
-    addMsg("Oups ! Vérifie ta connexion ou ta clé API 😅","ai");
-    document.getElementById("sBtn").disabled=false;
-  });
-}
-function askQ(q){document.getElementById("cInp").value=q;sendMsg();}
-
-// VOICE
-let voiceOn=true,frVoice=null;
-function loadVoices(){const v=window.speechSynthesis.getVoices();frVoice=v.find(x=>x.lang.startsWith("fr"))||null;}
-if(window.speechSynthesis){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
-function toggleVoice(){
-  voiceOn=!voiceOn;
-  const b=document.getElementById("voiceToggle");
-  b.textContent=voiceOn?"🔊":"🔇";b.classList.toggle("muted",!voiceOn);
-  if(!voiceOn)window.speechSynthesis&&window.speechSynthesis.cancel();
-  toast(voiceOn?"🔊 Voix activée":"🔇 Voix désactivée");
-}
-function speak(text,btnEl){
-  if(!voiceOn||!window.speechSynthesis)return;
-  window.speechSynthesis.cancel();
-  const clean=text.replace(/[^\w\s,.'!?àâçéèêëîïôùûüœæ-]/g," ").trim();
-  if(!clean)return;
-  const u=new SpeechSynthesisUtterance(clean);
-  u.lang="fr-FR";u.rate=0.9;u.pitch=1.1;u.volume=1;
-  if(frVoice)u.voice=frVoice;
-  if(btnEl){
-    const orig=btnEl.innerHTML;btnEl.classList.add("sp");btnEl.innerHTML="⏸️ En cours...";
-    const reset=()=>{btnEl.classList.remove("sp");btnEl.innerHTML=orig;btnEl.onclick=btnEl._orig;};
-    btnEl._orig=btnEl.onclick;btnEl.onclick=()=>{window.speechSynthesis.cancel();reset();};
-    u.onend=()=>reset();u.onerror=()=>reset();
-  }
-  window.speechSynthesis.speak(u);
-}
-function readNarr(){speak(document.getElementById("narrTxt").textContent,document.getElementById("narrVbtn"));}
-function readRes(){speak(document.getElementById("resBox").textContent,document.getElementById("resVbtn"));}
-function readQfb(){speak(document.getElementById("qfb").textContent,document.getElementById("qfbVbtn"));}
-let lastAiMsg="";
-function rereadChat(){
-  if(window.speechSynthesis&&window.speechSynthesis.speaking){window.speechSynthesis.cancel();return;}
-  if(lastAiMsg)speak(lastAiMsg,document.getElementById("cvBtn"));
-  else toast("💬 Pose une question d'abord !");
-}
-function readStory(){speak(document.getElementById("storyTxt").textContent,document.getElementById("storyVbtn"));}
-function readPrayer(){speak(document.getElementById("prayTxt").textContent+" "+document.getElementById("prayRef").textContent,document.getElementById("prayVbtn"));}
-function readVerse(){speak(document.getElementById("verseTxt").textContent+" "+document.getElementById("verseRef").textContent,document.getElementById("verseVbtn"));}
-
-// ══ IA - Raphaël ══
-function getApiKey(){return localStorage.getItem("ecodime_api_key")||"";}
-function setApiKey(k){localStorage.setItem("ecodime_api_key",k.trim());}
-
-function showApiSetup(onSuccess){
-  const ex=document.getElementById("apiModal");if(ex)ex.remove();
-  const m=document.createElement("div");m.id="apiModal";
-  m.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;";
-  m.innerHTML=`<div style="background:linear-gradient(160deg,#1A1A3E,#2C2C5E);border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:24px 18px;width:100%;max-width:350px;">
-    <div style="text-align:center;font-size:2.2rem;margin-bottom:8px;">🔑</div>
-    <h3 style="font-family:'Fredoka One',cursive;color:var(--gold);text-align:center;font-size:1.15rem;margin-bottom:6px;">Activer Raphaël IA</h3>
-    <p style="color:rgba(255,255,255,.5);font-size:.76rem;text-align:center;margin-bottom:13px;line-height:1.5;">Entre ta clé API Anthropic pour activer l'assistant.</p>
-    <input id="apiKeyInput" type="password" placeholder="sk-ant-api03-..." style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:11px 13px;color:#fff;font-size:.83rem;outline:none;margin-bottom:6px;font-family:monospace;">
-    <p style="color:rgba(255,255,255,.3);font-size:.66rem;margin-bottom:12px;">👉 console.anthropic.com → API Keys</p>
-    <button onclick="const k=document.getElementById('apiKeyInput').value.trim();if(!k.startsWith('sk-')){document.getElementById('apiKeyInput').style.borderColor='var(--red)';return;}setApiKey(k);document.getElementById('apiModal').remove();toast('✅ Raphaël activé !');if(window._apiCb)window._apiCb();" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--orange));border:none;border-radius:11px;padding:12px;color:#fff;font-family:'Fredoka One',cursive;font-size:.95rem;cursor:pointer;margin-bottom:6px;">✅ Activer</button>
-    <button onclick="document.getElementById('apiModal').remove();" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:10px;color:rgba(255,255,255,.45);font-family:'Fredoka One',cursive;font-size:.83rem;cursor:pointer;">Annuler</button>
-  </div>`;
-  window._apiCb=onSuccess||null;
-  document.body.appendChild(m);
-  setTimeout(()=>document.getElementById("apiKeyInput")?.focus(),100);
-}
-
-async function callAI(messages,system,onDone,onError){
-  if(!navigator.onLine){
-    onDone("Je suis hors ligne 😅 Les aventures et quiz fonctionnent sans internet ! 🌟");
-    return;
-  }
-  let key=getApiKey();
-  if(!key){showApiSetup(()=>callAI(messages,system,onDone,onError));return;}
-  try{
-    const r=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "x-api-key":key,
-        "anthropic-version":"2023-06-01",
-        "anthropic-dangerous-direct-browser-access":"true"
-      },
-      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1024,system:system||"",messages})
-    });
-    if(r.status===401){
-      localStorage.removeItem("ecodime_api_key");
-      showApiSetup(()=>callAI(messages,system,onDone,onError));
-      return;
-    }
-    const d=await r.json();
-    onDone(d.content?.[0]?.text||"");
-  }catch(e){
-    onDone("Erreur de connexion 😅 Vérifie ta connexion !");
-  }
-}
-
-
-// CREATOR
-let canvas,ctx,drawing=false,drawColor="#FF7043",drawTool="draw";
-const drawings=[];
-function initCanvas(){
-  if(canvas)return;
-  canvas=document.getElementById("drawCanvas");
-  canvas.width=canvas.offsetWidth||320;
-  ctx=canvas.getContext("2d");
-  ctx.fillStyle="#120820";ctx.fillRect(0,0,canvas.width,canvas.height);
-  canvas.addEventListener("mousedown",e=>{drawing=true;ctx.beginPath();ctx.moveTo(e.offsetX,e.offsetY);});
-  canvas.addEventListener("mousemove",e=>{if(!drawing)return;doDraw(e.offsetX,e.offsetY);});
-  canvas.addEventListener("mouseup",()=>drawing=false);
-  canvas.addEventListener("mouseleave",()=>drawing=false);
-  canvas.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];const r=canvas.getBoundingClientRect();drawing=true;ctx.beginPath();ctx.moveTo(t.clientX-r.left,t.clientY-r.top);},{passive:false});
-  canvas.addEventListener("touchmove",e=>{e.preventDefault();const t=e.touches[0];const r=canvas.getBoundingClientRect();doDraw(t.clientX-r.left,t.clientY-r.top);},{passive:false});
-  canvas.addEventListener("touchend",()=>drawing=false);
-}
-function doDraw(x,y){
-  ctx.lineWidth=parseInt(document.getElementById("brushSize").value);
-  ctx.lineCap="round";
-  if(drawTool==="erase"){ctx.strokeStyle="#120820";ctx.lineWidth*=2;}else ctx.strokeStyle=drawColor;
-  ctx.lineTo(x,y);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y);
-}
-function setColor(el){drawColor=el.dataset.color;document.querySelectorAll(".cdot").forEach(d=>d.classList.remove("active"));el.classList.add("active");setTool("draw");}
-function setTool(t){drawTool=t;document.getElementById("tb-draw").classList.toggle("active",t==="draw");document.getElementById("tb-erase").classList.toggle("active",t==="erase");}
-function clearCanvas(){if(!ctx)return;ctx.fillStyle="#120820";ctx.fillRect(0,0,canvas.width,canvas.height);}
-function saveDrawing(){
-  if(!canvas)return;
-  drawings.push({data:canvas.toDataURL(),time:new Date().toLocaleTimeString()});
-  toast("💾 Dessin sauvegardé !");renderGallery();
-}
-async function aiDescribeDrawing(){
-  if(!canvas)return;
-  const out=document.getElementById("aiDrawOut");const txt=document.getElementById("aiDrawTxt");
-  out.style.display="block";txt.innerHTML='<span class="spin"></span>Raphaël analyse ton dessin...';
-  const imgData=canvas.toDataURL("image/jpeg",.7).split(",")[1];
-  callAI([{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:imgData}},{type:"text",text:"Tu es Raphaël assistant biblique pour enfants. Décris ce dessin de façon amusante et encourage l'enfant. Fais un lien avec une histoire biblique. En français 3-4 phrases avec des emojis."}]}],null,(res)=>{txt.textContent=res;if(voiceOn)speak(res);},()=>{txt.textContent="Quel magnifique dessin biblique ! Continue à créer ! 🎨";});
-}
-function switchCtab(i){
-  document.querySelectorAll(".ctab").forEach((t,j)=>t.classList.toggle("active",j===i));
-  document.querySelectorAll(".ctab-content").forEach((c,j)=>c.classList.toggle("active",j===i));
-  if(i===0)setTimeout(initCanvas,100);
-  if(i===4)renderGallery();
-}
-function renderGallery(){
-  const g=document.getElementById("galGrid");
-  if(!drawings.length){g.innerHTML='<div class="gempty" style="grid-column:1/-1;">Pas encore de dessins ! Va dans l\'onglet Dessin 🎨</div>';return;}
-  g.innerHTML="";
-  drawings.forEach((d,i)=>{
-    const div=document.createElement("div");div.className="gi";
-    div.innerHTML=`<img src="${d.data}" style="width:100%;border-radius:11px 11px 0 0;"><div class="glbl">🎨 Dessin ${i+1} — ${d.time}</div>`;
-    g.appendChild(div);
-  });
-}
-async function generateStory(){
-  const hero=document.getElementById("storyHero").value;
-  const place=document.getElementById("storyPlace").value||"un lieu mystérieux";
-  const idea=document.getElementById("storyIdea").value;
-  const btn=document.getElementById("genStoryBtn");
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Génération...';
-  document.getElementById("storyOut").style.display="none";
-  const prompt=`Écris une courte histoire biblique amusante pour enfants (6-10 ans) avec ${hero} comme héros. L'aventure se passe ${place}. ${idea?"Inclure : "+idea+".":""} Enseigne une valeur chrétienne. Maximum 5-6 phrases. En français. Commence directement.`;
-  callAI([{role:"user",content:prompt}],null,(txt)=>{
-    document.getElementById("storyTxt").textContent=txt;document.getElementById("storyOut").style.display="block";toast("📖 Histoire générée !");
-    if(voiceOn)setTimeout(()=>speak(txt,document.getElementById("storyVbtn")),300);
-    btn.disabled=false;btn.innerHTML="✨ Générer mon histoire !";
-  },()=>{document.getElementById("storyTxt").textContent="Erreur. Réessaie !";btn.disabled=false;btn.innerHTML="✨ Générer mon histoire !";});
-}
-let curMood="heureux";
-function setMood(el){curMood=el.dataset.mood;document.querySelectorAll(".mdbtn").forEach(b=>b.classList.remove("active"));el.classList.add("active");}
-const OFFLINE_PRAYERS={heureux:"Merci Seigneur pour cette belle journée ! Tu as mis de la joie dans mon cœur. Je veux la partager avec tous ! Tu es un Dieu merveilleux. 📖 Rejouis-toi en l'Éternel. — Psaume 37:4",triste:"Seigneur je me sens triste et j'ai besoin de toi. Prends ma tristesse et donne-moi ta paix. Je sais que tu m'aimes ! 📖 L'Éternel est proche de ceux qui ont le cœur brisé. — Psaume 34:18",peur:"Seigneur j'ai peur et j'ai besoin de ta force. Aide-moi à te faire confiance. Tu es mon rocher ! 📖 Ne crains rien car je suis avec toi. — Ésaïe 41:10",reconnaissant:"Merci Seigneur pour tout ce que tu m'as donné ! Ta parole et ton amour. Je veux être reconnaissant ! 📖 Rendez grâces en toutes choses. — 1 Thessaloniciens 5:18",fatigué:"Seigneur je suis fatigué aujourd'hui. Repose-moi dans ta paix et renouvelle mes forces ! 📖 Ceux qui se confient en l'Éternel renouvellent leur force. — Ésaïe 40:31"};
-async function generatePrayer(){
-  const btn=document.getElementById("genPrayBtn");
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Génération...';
-  document.getElementById("prayOut").style.display="none";
-  if(!navigator.onLine){
-    const p=OFFLINE_PRAYERS[curMood]||OFFLINE_PRAYERS.heureux;
-    const parts=p.split("📖");
-    document.getElementById("prayTxt").textContent=parts[0].trim();
-    document.getElementById("prayRef").textContent=parts[1]?"📖 "+parts[1].trim():"";
-    document.getElementById("prayOut").style.display="block";
-    if(voiceOn)setTimeout(()=>speak(parts[0],document.getElementById("prayVbtn")),300);
-    btn.disabled=false;btn.innerHTML="🙏 Générer ma prière";return;
-  }
-  const prompt=`Écris une courte prière pour un enfant qui se sent "${curMood}". Simple douce biblique en première personne. Maximum 4-5 phrases. Termine par un verset biblique court. Format : prière puis "📖 [référence]" sur une nouvelle ligne. En français.`;
-  callAI([{role:"user",content:prompt}],null,(txt)=>{
-    const parts=txt.split("📖");
-    document.getElementById("prayTxt").textContent=parts[0].trim();
-    document.getElementById("prayRef").textContent=parts[1]?"📖 "+parts[1].trim():"";
-    document.getElementById("prayOut").style.display="block";toast("🙏 Prière générée !");
-    if(voiceOn)setTimeout(()=>speak(parts[0],document.getElementById("prayVbtn")),300);
-    btn.disabled=false;btn.innerHTML="🙏 Générer ma prière";
-  },()=>{document.getElementById("prayTxt").textContent="Seigneur merci pour cette belle journée !";btn.disabled=false;btn.innerHTML="🙏 Générer ma prière";});
-}
-const OFFLINE_VERSES=[
-  {v:"Je puis tout par celui qui me fortifie.",r:"Philippiens 4:13",e:"Avec Dieu tu peux réussir toutes les choses difficiles ! Il te donne la force."},
-  {v:"Sois fort et courageux ! Ne crains rien.",r:"Josué 1:9",e:"Quand tu as peur rappelle-toi que Dieu est toujours à côté de toi !"},
-  {v:"Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",r:"Jean 3:16",e:"Dieu t'aime tellement qu'il a envoyé Jésus pour toi. Tu es très précieux !"},
-  {v:"L'Éternel est mon berger je ne manquerai de rien.",r:"Psaume 23:1",e:"Comme un berger prend soin de ses moutons Dieu prend soin de toi chaque jour."},
-  {v:"Aime ton prochain comme toi-même.",r:"Marc 12:31",e:"Jésus nous dit d'être gentils avec les autres comme on voudrait qu'ils soient gentils avec nous !"}
-];
-async function generateVerse(){
-  const btn=document.getElementById("genVerseBtn");
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Recherche...';
-  document.getElementById("verseExplain").style.display="none";
-  if(!navigator.onLine){
-    const v=OFFLINE_VERSES[Math.floor(Math.random()*OFFLINE_VERSES.length)];
-    document.getElementById("verseTxt").textContent=v.v;document.getElementById("verseRef").textContent=v.r;
-    document.getElementById("verseVbtn").style.display="inline-flex";
-    document.getElementById("verseExplainTxt").textContent=v.e;document.getElementById("verseExplain").style.display="block";
-    if(voiceOn)setTimeout(()=>speak(v.v+" "+v.r,document.getElementById("verseVbtn")),300);
-    btn.disabled=false;btn.innerHTML="⭐ Nouveau verset du jour";return;
-  }
-  const prompt=`Donne un verset biblique inspirant pour un enfant chrétien. Format exact :\nVERSET: [le verset]\nREFERENCE: [Livre Chapitre:Verset]\nEXPLICATION: [explication simple en 2-3 phrases pour un enfant de 8 ans]\nEn français.`;
-  callAI([{role:"user",content:prompt}],null,(txt)=>{
-    const vm=txt.match(/VERSET:\s*(.+)/);const rm=txt.match(/REFERENCE:\s*(.+)/);const em=txt.match(/EXPLICATION:\s*([\s\S]+)/);
-    document.getElementById("verseTxt").textContent=vm?vm[1].trim():"Sois fort et courageux !";
-    document.getElementById("verseRef").textContent=rm?rm[1].trim():"";
-    document.getElementById("verseVbtn").style.display="inline-flex";
-    if(em){document.getElementById("verseExplainTxt").textContent=em[1].trim();document.getElementById("verseExplain").style.display="block";}
-    toast("⭐ Verset reçu !");if(voiceOn)setTimeout(()=>speak((vm?vm[1]:"")+". "+(rm?rm[1]:""),document.getElementById("verseVbtn")),300);
-    btn.disabled=false;btn.innerHTML="⭐ Nouveau verset du jour";
-  },()=>{document.getElementById("verseTxt").textContent="Dieu est amour.";btn.disabled=false;btn.innerHTML="⭐ Nouveau verset du jour";});
-}
-
-// ADMIN
-let adminLogged=false;
-async function adminLogin(){
-  const pwd=document.getElementById("adminPwd").value;
-  try{
-    const r=await fetch('/api/admin/login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({password:pwd})
-    });
-    const d=await r.json();
-    if(d.success){
-      adminLogged=true;
-      document.getElementById("adminLogin").style.display="none";
-      document.getElementById("adminPanel").style.display="block";
-      toast("🛡️ Bienvenue Jean Marcel !");
-      loadAdminData();
-    }else{
-      toast("❌ "+d.message);
-      document.getElementById("adminPwd").style.borderColor="var(--red)";
-      setTimeout(()=>document.getElementById("adminPwd").style.borderColor="",1500);
-    }
-  }catch(e){toast("❌ Erreur serveur");}
-}
-function adminLogout(){
-  adminLogged=false;
-  document.getElementById("adminLogin").style.display="flex";
-  document.getElementById("adminPanel").style.display="none";
-  document.getElementById("adminPwd").value="";goHome();
-}
-async function loadAdminData(){
-  try{
-    const r=await fetch('/api/admin/data');
-    if(r.status===401){toast("❌ Session expirée");adminLogout();return;}
-    const {stats,users:usersData,logs}=await r.json();
-    animateStat("aStat1",stats.totalUsers);
-    animateStat("aStat2",stats.storiesPlayed);
-    animateStat("aStat3",stats.quizDone);
-    animateStat("aStat4",stats.countries);
-    const users=usersData;
-    const logs2=logs;
-  const tbody=document.getElementById("childrenTable");
-  if(!users.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:rgba(255,255,255,.3);padding:16px;">Aucun enfant inscrit</td></tr>';}
-  else{
-    tbody.innerHTML=users.map((u,i)=>{
-      const done=(u.storiesDone||[]).length;
-      const total=AT_STORIES.length+NT_STORIES.length;
-      const pct=Math.round(done/total*100);
-      const status=done===0?"Nouveau":pct>=50?"Actif":"En cours";
-      const sc=done===0?"r":pct>=50?"g":"o";
-      return `<tr class="clickable" onclick="showChildProfile(${i})"><td>${u.prenom} ${u.nom}</td><td>${u.pays}</td><td>${u.eglise}</td><td>${u.xp||0}</td><td><span class="badge ${sc}">${status}</span></td></tr>`;
-    }).join("");
-  }
-  const logEl=document.getElementById("activityLog");
-  if(!logs2||!logs2.length){logEl.innerHTML='<div style="color:rgba(255,255,255,.28);font-size:.76rem;padding:12px 0;text-align:center;">Aucune activité</div>';}
-  else{
-    logEl.innerHTML=logs2.slice(0,10).map(l=>{
-      const ago=Math.round((Date.now()-new Date(l.time).getTime())/60000);
-      return `<div class="alog-item"><div class="alog-ic" style="background:rgba(255,215,0,.1);">⭐</div><div class="alog-info"><div class="alog-name">${l.name} ${l.action}</div><div class="alog-time">Il y a ${ago<60?ago+" min":Math.round(ago/60)+"h"}</div></div><div class="alog-xp">+${l.xp} XP</div></div>`;
-    }).join("");
-  }
-  }catch(e){console.error(e);toast("❌ Erreur chargement");}
-}
-function showChildProfile(idx){
-  const u=getUsers()[idx];if(!u)return;
-  const done=u.storiesDone||[];
-  const atDone=AT_STORIES.filter(s=>done.includes(s.id)).length;
-  const ntDone=NT_STORIES.filter(s=>done.includes(s.id)).length;
-  const total=AT_STORIES.length+NT_STORIES.length;
-  document.getElementById("childModalTitle").textContent=u.prenom+" "+u.nom;
-  document.getElementById("childModalContent").innerHTML=`
-    <div class="prof-row"><span class="pk">Prénom</span><span class="pv">${u.prenom}</span></div>
-    <div class="prof-row"><span class="pk">Nom</span><span class="pv">${u.nom}</span></div>
-    <div class="prof-row"><span class="pk">Pays</span><span class="pv">${u.pays}</span></div>
-    <div class="prof-row"><span class="pk">Ville</span><span class="pv">${u.ville}</span></div>
-    <div class="prof-row"><span class="pk">Église</span><span class="pv">${u.eglise}</span></div>
-    <div class="prof-row"><span class="pk">XP Total</span><span class="pv">${u.xp||0} XP</span></div>
-    <div class="prof-row"><span class="pk">Pièces</span><span class="pv">🪙 ${u.coins||0}</span></div>
-    <div class="prof-row"><span class="pk">Inscrit le</span><span class="pv">${new Date(u.registeredAt).toLocaleDateString("fr")}</span></div>
-    <div class="prof-row"><span class="pk">Dernière activité</span><span class="pv">${new Date(u.lastActive).toLocaleDateString("fr")}</span></div>
-    <div class="prog-bar-wrap">
-      <div class="prog-bar-lbl"><span>Progression Globale</span><span>${atDone+ntDone}/${total}</span></div>
-      <div class="prog-bar"><div class="prog-fill" style="width:${Math.round((atDone+ntDone)/total*100)}%"></div></div>
-    </div>
-    <div class="prog-bar-wrap">
-      <div class="prog-bar-lbl"><span>Ancien Testament</span><span>${atDone}/${AT_STORIES.length}</span></div>
-      <div class="prog-bar"><div class="prog-fill" style="width:${Math.round(atDone/AT_STORIES.length*100)}%"></div></div>
-    </div>
-    <div class="prog-bar-wrap">
-      <div class="prog-bar-lbl"><span>Nouveau Testament</span><span>${ntDone}/${NT_STORIES.length}</span></div>
-      <div class="prog-bar"><div class="prog-fill" style="width:${Math.round(ntDone/NT_STORIES.length*100)||0}%"></div></div>
-    </div>
-    <div style="margin-top:11px;">
-      <div style="color:rgba(255,255,255,.42);font-size:.7rem;margin-bottom:6px;">Histoires complétées :</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        ${!done.length?'<span style="color:rgba(255,255,255,.28);font-size:.72rem;">Aucune histoire</span>':done.map(id=>{
-          const s=[...AT_STORIES,...NT_STORIES].find(x=>x.id===id);
-          return s?`<span style="background:rgba(102,187,106,.18);border:1px solid rgba(102,187,106,.28);border-radius:7px;padding:2px 7px;font-size:.67rem;color:var(--green);">${s.em} ${s.title}</span>`:"";
-        }).join("")}
-      </div>
-    </div>`;
-  document.getElementById("childModal").classList.add("open");
-}
-function animateStat(id,target){
-  let n=0;const el=document.getElementById(id);
-  const iv=setInterval(()=>{n+=Math.ceil((target||1)/25);if(n>=target){n=target;clearInterval(iv);}el.textContent=n;},40);
-}
-function switchAtab(i){
-  document.querySelectorAll(".atab").forEach((t,j)=>t.classList.toggle("active",j===i));
-  document.querySelectorAll(".atab-content").forEach((c,j)=>c.classList.toggle("active",j===i));
-}
-function saveContent(){
-  const title=document.getElementById("contentTitle").value;
-  if(!title){toast("❌ Remplis le titre !");return;}
-  toast("✅ \""+title+"\" publié !");
-  document.getElementById("contentTitle").value="";document.getElementById("contentDesc").value="";
-}
-async function generateAdminQuiz(){
-  const theme=document.getElementById("qTheme").value;
-  const diff=document.getElementById("qDiff").value;
-  const btn=document.getElementById("genQBtn");const sp=document.getElementById("qSpin");
-  btn.disabled=true;sp.style.display="inline-block";
-  document.getElementById("adminQOut").style.display="none";
-  const prompt=`Génère une question de quiz biblique sur "${theme}" pour des enfants (${diff}). Format exact :\nQUESTION: [la question]\nA: [option A]\nB: [option B]\nC: [option C]\nD: [option D]\nREPONSE: [lettre]\nEXPLICATION: [1-2 phrases]\nEn français.`;
-  callAI([{role:"user",content:prompt}],null,(txt)=>{
-    document.getElementById("adminQTxt").textContent=txt;document.getElementById("adminQOut").style.display="block";toast("✅ Question générée !");
-    btn.disabled=false;sp.style.display="none";
-  },()=>{document.getElementById("adminQTxt").textContent="Erreur. Réessaie.";btn.disabled=false;sp.style.display="none";});
-}
 
 // ══════════════════════════════════════
 // AVATAR SELECTION
