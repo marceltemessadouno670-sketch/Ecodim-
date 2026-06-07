@@ -421,6 +421,17 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
     <div class="coins-pill">🪙 <span id="coinCount">0</span></div>
   </div>
 
+  <!-- BOUTON INSTALLATION -->
+  <div id="installBanner" style="display:none;margin:0 16px 10px;background:linear-gradient(135deg,#1565C0,#0D47A1);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:10px;position:relative;z-index:10;">
+    <div style="font-size:1.6rem;">📲</div>
+    <div style="flex:1;">
+      <div style="font-family:'Fredoka One',cursive;color:#fff;font-size:.95rem;">Installer Ecodime</div>
+      <div style="color:rgba(255,255,255,.65);font-size:.72rem;">Accès rapide depuis l'écran d'accueil</div>
+    </div>
+    <button onclick="installApp()" style="background:var(--gold);border:none;border-radius:10px;padding:8px 14px;color:#000;font-family:'Fredoka One',cursive;font-size:.82rem;cursor:pointer;">Installer</button>
+    <button onclick="document.getElementById('installBanner').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer;padding:0 4px;">×</button>
+  </div>
+
   <div class="section">
     <div class="sec-title">🌟 Défi du jour</div>
     <div style="background:linear-gradient(135deg,#FF6B35,#FF3D77);border-radius:17px;padding:15px;position:relative;overflow:hidden;cursor:pointer;" onclick="goQuiz()">
@@ -644,6 +655,25 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
   </div>
 </div>
 
+<!-- BOUTIQUE SCREEN -->
+<div id="boutiqueScreen" class="screen" style="background:linear-gradient(160deg,#1A0A2E,#2D1B4E);">
+  <div class="sh">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <div class="sh-info"><h2>Boutique 🛍️</h2><p>Dépense tes pièces !</p></div>
+    <div style="margin-left:auto;background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);border-radius:20px;padding:5px 12px;color:var(--gold);font-weight:800;font-size:.88rem;">🪙 <span id="shopCoins">0</span></div>
+  </div>
+  
+  <div style="padding:0 16px;margin-bottom:14px;">
+    <div style="font-family:'Fredoka One',cursive;color:rgba(255,255,255,.8);font-size:1rem;margin-bottom:10px;">🎭 Avatars</div>
+    <div id="avatarShop" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;"></div>
+  </div>
+  
+  <div style="padding:0 16px;margin-bottom:14px;">
+    <div style="font-family:'Fredoka One',cursive;color:rgba(255,255,255,.8);font-size:1rem;margin-bottom:10px;">📖 Histoires Premium</div>
+    <div id="storyShop" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+  </div>
+</div>
+
 <!-- CHALLENGE SCREEN -->
 <div id="challengeScreen" class="screen" style="background:#050810;padding-bottom:0;">
   <iframe id="challengeFrame" src="challenge.html" style="width:100%;height:100vh;border:none;display:block;" allow="camera;microphone"></iframe>
@@ -657,6 +687,7 @@ body{font-family:"Nunito",sans-serif;background:#0F2027;min-height:100vh;overflo
   <div class="ni" id="n3" onclick="goCreator()"><div class="ni-ic">🎨</div><div class="ni-lb">Créateur</div></div>
   <div class="ni" id="n4" onclick="goMemory()"><div class="ni-ic">🃏</div><div class="ni-lb">Mémoire</div></div>
   <div class="ni" id="n5" onclick="goChallenge()"><div class="ni-ic">⚔️</div><div class="ni-lb">Challenge</div></div>
+  <div class="ni" id="n6" onclick="goBoutique()"><div class="ni-ic">🛍️</div><div class="ni-lb">Boutique</div></div>
 </div>
 <script>
 // GO TO REGISTER
@@ -835,7 +866,24 @@ function askName(){
     </select>
     <input id="villeInp" placeholder="Ta ville" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:8px;font-family:'Nunito',sans-serif;">
     <input id="egliseInp" placeholder="Ton église" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:11px;padding:11px 14px;color:#fff;font-size:.9rem;outline:none;margin-bottom:12px;font-family:'Nunito',sans-serif;">
-    <button onclick="saveQuickProfile()" style="width:100%;background:linear-gradient(135deg,#FFD700,#FF7043);border:none;border-radius:12px;padding:13px;color:#fff;font-family:'Fredoka One',cursive;font-size:1.05rem;cursor:pointer;">🚀 C'est parti !</button>
+    
+    <!-- CHOIX AVATAR -->
+    <div style="margin-bottom:12px;">
+      <div style="color:rgba(255,255,255,.6);font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Choisis ton avatar</div>
+      <div id="avatarGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+        <div class="av-opt active" data-av="😇" onclick="selectAvatar(this)" style="background:rgba(255,215,0,.2);border:2px solid var(--gold);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">😇</div>
+        <div class="av-opt" data-av="🦁" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🦁</div>
+        <div class="av-opt" data-av="🐑" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🐑</div>
+        <div class="av-opt" data-av="🕊️" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🕊️</div>
+        <div class="av-opt" data-av="⭐" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">⭐</div>
+        <div class="av-opt" data-av="🌟" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🌟</div>
+        <div class="av-opt" data-av="🦅" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🦅</div>
+        <div class="av-opt" data-av="🌈" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🌈</div>
+        <div class="av-opt" data-av="🔥" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">🔥</div>
+        <div class="av-opt" data-av="👑" onclick="selectAvatar(this)" style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:8px;text-align:center;font-size:1.6rem;cursor:pointer;">👑</div>
+      </div>
+    </div>
+    <button id="regSubmitBtn" onclick="saveQuickProfile()" style="width:100%;background:linear-gradient(135deg,#FFD700,#FF7043);border:none;border-radius:12px;padding:14px;color:#fff;font-family:'Fredoka One',cursive;font-size:1.05rem;cursor:pointer;margin-top:4px;">🚀 C'est parti !</button>
   </div>`;
   document.body.appendChild(m);
   setTimeout(()=>document.getElementById("nameInp")&&document.getElementById("nameInp").focus(),300);
@@ -1116,8 +1164,20 @@ function choiceMade(idx){
   rb.style.display="block";
   document.getElementById("resVbtn").style.display="inline-flex";
   const nb2=document.getElementById("nextBtn");nb2.style.display="block";nb2.style.position="relative";nb2.style.zIndex="20";
-  if(isGood){addReward(50,10);toast("🌟 +50 XP  +10 🪙");}
-  else toast("💡 Lis la leçon et continue !");
+  if(isGood){
+    addReward(50,10);
+    toast("🌟 +50 XP  +10 🪙");
+  } else {
+    // Perdre des points comme Duolingo
+    if(coins>=5){
+      coins-=5;
+      document.getElementById("coinCount").textContent=coins;
+      syncProgressFirebase();
+      toast("❌ -5 🪙 Lis la leçon et réessaie !");
+    } else {
+      toast("💡 Lis la leçon et continue !");
+    }
+  }
   setTimeout(()=>{if(voiceOn)speak(rb.textContent,document.getElementById("resVbtn"));},300);
 }
 function nextStep(){
@@ -1637,6 +1697,215 @@ async function generateAdminQuiz(){
     document.getElementById("adminQTxt").textContent=txt;document.getElementById("adminQOut").style.display="block";toast("✅ Question générée !");
     btn.disabled=false;sp.style.display="none";
   },()=>{document.getElementById("adminQTxt").textContent="Erreur. Réessaie.";btn.disabled=false;sp.style.display="none";});
+}
+
+// ══════════════════════════════════════
+// AVATAR SELECTION
+// ══════════════════════════════════════
+let selectedAvatar = "😇";
+function selectAvatar(el){
+  document.querySelectorAll(".av-opt").forEach(a=>{
+    a.style.background="rgba(255,255,255,.08)";
+    a.style.borderColor="rgba(255,255,255,.15)";
+  });
+  el.style.background="rgba(255,215,0,.2)";
+  el.style.borderColor="var(--gold)";
+  selectedAvatar = el.dataset.av;
+}
+
+// ══════════════════════════════════════
+// BOUTIQUE
+// ══════════════════════════════════════
+const ALL_AVATARS = [
+  {av:"😇",name:"Ange",price:0,unlocked:true},
+  {av:"🦁",name:"Lion",price:0,unlocked:true},
+  {av:"🐑",name:"Agneau",price:0,unlocked:true},
+  {av:"🕊️",name:"Colombe",price:0,unlocked:true},
+  {av:"⭐",name:"Étoile",price:0,unlocked:true},
+  {av:"🌟",name:"Lumière",price:50,unlocked:false},
+  {av:"🦅",name:"Aigle",price:50,unlocked:false},
+  {av:"🌈",name:"Arc-en-ciel",price:100,unlocked:false},
+  {av:"🔥",name:"Feu",price:100,unlocked:false},
+  {av:"👑",name:"Couronne",price:200,unlocked:false},
+  {av:"⚡",name:"Éclair",price:200,unlocked:false},
+  {av:"🏆",name:"Trophée",price:300,unlocked:false},
+  {av:"💎",name:"Diamant",price:500,unlocked:false},
+  {av:"🌙",name:"Lune",price:150,unlocked:false},
+  {av:"🎯",name:"Cible",price:150,unlocked:false},
+  {av:"🦋",name:"Papillon",price:250,unlocked:false},
+];
+
+function goBoutique(){
+  document.getElementById("shopCoins").textContent=coins;
+  renderAvatarShop();
+  renderStoryShop();
+  showScreen("boutiqueScreen",6);
+}
+
+function renderAvatarShop(){
+  const unlocked = _currentUser?.unlockedAvatars || [];
+  const grid = document.getElementById("avatarShop");
+  grid.innerHTML = ALL_AVATARS.map(a => {
+    const isUnlocked = a.price===0 || unlocked.includes(a.av);
+    const isCurrent = _currentUser?.avatar === a.av;
+    return `<div style="background:rgba(255,255,255,.07);border:2px solid ${isCurrent?'var(--gold)':isUnlocked?'rgba(102,187,106,.4)':'rgba(255,255,255,.1)'};border-radius:14px;padding:10px 6px;text-align:center;cursor:pointer;" onclick="buyOrSelectAvatar('${a.av}',${a.price},${isUnlocked})">
+      <div style="font-size:2rem;">${a.av}</div>
+      <div style="font-size:.65rem;color:rgba(255,255,255,.7);margin-top:3px;">${a.name}</div>
+      <div style="font-size:.7rem;color:${isUnlocked?'var(--green)':'var(--gold)'};font-weight:700;margin-top:2px;">${isCurrent?'✅ Actif':isUnlocked?'Utiliser':'🪙 '+a.price}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderStoryShop(){
+  const grid = document.getElementById("storyShop");
+  const premiumStories = [
+    {id:"salomon_premium",title:"Salomon & le Jugement",em:"⚖️",price:100},
+    {id:"apocalypse",title:"L'Apocalypse",em:"🌟",price:200},
+    {id:"creation_7j",title:"7 Jours de Création",em:"🌍",price:150},
+  ];
+  grid.innerHTML = premiumStories.map(s => {
+    const owned = _currentUser?.storiesDone?.includes(s.id);
+    return `<div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;cursor:pointer;" onclick="buyStory('${s.id}',${s.price})">
+      <div style="font-size:2rem;text-align:center;margin-bottom:6px;">${s.em}</div>
+      <div style="font-family:'Fredoka One',cursive;color:#fff;font-size:.88rem;text-align:center;">${s.title}</div>
+      <div style="text-align:center;margin-top:6px;font-size:.78rem;color:${owned?'var(--green)':'var(--gold)'};font-weight:700;">${owned?'✅ Débloqué':'🪙 '+s.price+' pièces'}</div>
+    </div>`;
+  }).join('');
+}
+
+function buyOrSelectAvatar(av, price, isUnlocked){
+  if(isUnlocked){
+    // Juste sélectionner
+    if(_currentUser){
+      _currentUser.avatar=av;
+      document.querySelector(".avatar").textContent=av;
+      syncProgressFirebase();
+      toast("✅ Avatar changé !");
+      renderAvatarShop();
+    }
+  } else {
+    // Acheter
+    if(coins < price){
+      toast("❌ Pas assez de pièces ! Il te faut "+price+" 🪙");
+      return;
+    }
+    if(confirm("Acheter cet avatar pour "+price+" 🪙 ?")){
+      coins -= price;
+      document.getElementById("coinCount").textContent=coins;
+      document.getElementById("shopCoins").textContent=coins;
+      if(!_currentUser.unlockedAvatars) _currentUser.unlockedAvatars=[];
+      _currentUser.unlockedAvatars.push(av);
+      _currentUser.avatar=av;
+      document.querySelector(".avatar").textContent=av;
+      syncProgressFirebase();
+      toast("🎉 Avatar débloqué et activé !");
+      renderAvatarShop();
+    }
+  }
+}
+
+function buyStory(id, price){
+  const owned = _currentUser?.storiesDone?.includes(id);
+  if(owned){toast("✅ Tu as déjà cette histoire !");return;}
+  if(coins < price){toast("❌ Pas assez de pièces ! Il te faut "+price+" 🪙");return;}
+  if(confirm("Débloquer cette histoire pour "+price+" 🪙 ?")){
+    coins -= price;
+    document.getElementById("coinCount").textContent=coins;
+    if(!_currentUser.storiesDone) _currentUser.storiesDone=[];
+    _currentUser.storiesDone.push(id);
+    syncProgressFirebase();
+    toast("🎉 Histoire débloquée !");
+    renderStoryShop();
+  }
+}
+
+// ══════════════════════════════════════
+// INSTALLATION PWA
+// ══════════════════════════════════════
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').style.display='flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').style.display='none';
+  toast("🎉 Ecodime installé sur ton appareil !");
+});
+
+async function installApp(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    const {outcome} = await deferredPrompt.userChoice;
+    if(outcome==='accepted') toast("🎉 Installation en cours !");
+    deferredPrompt = null;
+    document.getElementById('installBanner').style.display='none';
+  } else {
+    toast("💡 Sur Chrome: menu ⋮ → Ajouter à l'écran d'accueil");
+  }
+}
+
+// ══════════════════════════════════════
+// FIX INSCRIPTION - saveQuickProfile amélioré
+// ══════════════════════════════════════
+// Remplacer l'ancienne fonction
+const _oldSaveProfile = saveQuickProfile;
+async function saveQuickProfile(){
+  const btn = document.getElementById("regSubmitBtn");
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span>Inscription...'; }
+  
+  const prenom=(document.getElementById("nameInp")?.value||"").trim();
+  if(!prenom){
+    document.getElementById("nameInp").style.borderColor="var(--red)";
+    document.getElementById("nameInp").placeholder="⚠️ Prénom obligatoire !";
+    if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
+    return;
+  }
+  const nom=(document.getElementById("nomInp")?.value||"").trim();
+  const pays=(document.getElementById("paysInp")?.value||"").trim();
+  const ville=(document.getElementById("villeInp")?.value||"").trim();
+  const eglise=(document.getElementById("egliseInp")?.value||"").trim();
+  
+  try{
+    const r=await fetch('/api/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prenom,nom,pays,ville,eglise,avatar:selectedAvatar})
+    });
+    const d=await r.json();
+    if(!d.success){
+      toast("❌ "+d.message);
+      if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
+      return;
+    }
+    _currentUser=d.user;
+    _currentUser.avatar=selectedAvatar;
+    xp=0;coins=0;
+    initHomeProfile();
+    document.getElementById("mainNav").style.display="flex";
+    document.getElementById("nameModal")?.remove();
+    showScreen("homeScreen",0);renderStories();
+    // Sauvegarder sur Firebase
+    saveToFirebase(d.user);
+    toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
+  }catch(e){
+    toast("❌ Erreur serveur. Réessaie !");
+    if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
+  }
+}
+
+// Mettre à jour l'avatar dans le profil
+function initHomeProfile(){
+  const u=getCurrentUser();if(!u)return;
+  const avatar = u.avatar || "😇";
+  document.querySelector(".avatar").textContent=avatar;
+  document.getElementById("playerName").textContent=u.prenom+(u.nom?" "+u.nom:"");
+  document.getElementById("playerChurch").textContent=(u.eglise?"⛪ "+u.eglise:"")+(u.ville?" · "+u.ville:"");
+  document.getElementById("xpLbl").textContent=xp+" XP";
+  document.getElementById("xpFill").style.width=Math.min(100,(xp/2000)*100)+"%";
+  document.getElementById("coinCount").textContent=coins;
 }
 
 // OFFLINE
