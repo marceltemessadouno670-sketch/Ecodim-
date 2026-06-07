@@ -730,22 +730,38 @@ function updateCurrentUser(updates){
   }).catch(()=>{});
 }
 
-// Vérifier session au démarrage
+// Vérifier session au démarrage (via localStorage + Firebase)
 async function checkSession(){
   try{
-    const r=await fetch('/api/me');
-    const d=await r.json();
-    if(d.loggedIn && d.user){
-      _currentUser=d.user;
-      xp=d.user.xp||0;coins=d.user.coins||0;
+    const uid = localStorage.getItem("ecodime_uid");
+    if(!uid) return false;
+    
+    // Charger depuis localStorage d'abord (rapide)
+    const cached = localStorage.getItem("ecodime_user");
+    if(cached){
+      const u = JSON.parse(cached);
+      _currentUser = u;
+      xp = u.xp||0; coins = u.coins||0;
       initHomeProfile();
       document.getElementById("mainNav").style.display="flex";
       showScreen("homeScreen",0);
       renderStories();
-      return true;
     }
-  }catch(e){}
-  return false;
+    
+    // Puis sync Firebase en arrière-plan
+    waitForFirebase().then(async()=>{
+      const fresh = await window.fbGet("users/"+uid);
+      if(fresh){
+        _currentUser = fresh;
+        xp = fresh.xp||0; coins = fresh.coins||0;
+        localStorage.setItem("ecodime_user", JSON.stringify(fresh));
+        initHomeProfile();
+        renderStories();
+      }
+    });
+    
+    return !!cached;
+  }catch(e){ return false; }
 }
 
 // STATE
@@ -943,13 +959,16 @@ async function saveToFirebase(user){
 
 // Sync progression Firebase
 async function syncProgressFirebase(){
-  if(!_currentUser || !window.fbDB) return;
+  if(!_currentUser) return;
   try{
-    await window.fbUpdate("users/"+_currentUser.id, {
-      xp, coins,
-      storiesDone: _currentUser.storiesDone||[],
-      lastActive: new Date().toISOString()
-    });
+    const updates = {xp, coins, storiesDone:_currentUser.storiesDone||[], lastActive:new Date().toISOString()};
+    if(_currentUser.avatar) updates.avatar=_currentUser.avatar;
+    if(_currentUser.unlockedAvatars) updates.unlockedAvatars=_currentUser.unlockedAvatars;
+    // Sauvegarder localement
+    Object.assign(_currentUser, updates);
+    localStorage.setItem("ecodime_user", JSON.stringify(_currentUser));
+    // Sauvegarder Firebase
+    if(window.fbDB) await window.fbUpdate("users/"+_currentUser.id, updates);
   }catch(e){}
 }
 
@@ -1415,31 +1434,55 @@ function readStory(){speak(document.getElementById("storyTxt").textContent,docum
 function readPrayer(){speak(document.getElementById("prayTxt").textContent+" "+document.getElementById("prayRef").textContent,document.getElementById("prayVbtn"));}
 function readVerse(){speak(document.getElementById("verseTxt").textContent+" "+document.getElementById("verseRef").textContent,document.getElementById("verseVbtn"));}
 
-// ══ IA VIA SERVEUR SÉCURISÉ ══
+// ══ IA - Raphaël ══
+function getApiKey(){return localStorage.getItem("ecodime_api_key")||"";}
+function setApiKey(k){localStorage.setItem("ecodime_api_key",k.trim());}
+
+function showApiSetup(onSuccess){
+  const ex=document.getElementById("apiModal");if(ex)ex.remove();
+  const m=document.createElement("div");m.id="apiModal";
+  m.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;";
+  m.innerHTML=`<div style="background:linear-gradient(160deg,#1A1A3E,#2C2C5E);border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:24px 18px;width:100%;max-width:350px;">
+    <div style="text-align:center;font-size:2.2rem;margin-bottom:8px;">🔑</div>
+    <h3 style="font-family:'Fredoka One',cursive;color:var(--gold);text-align:center;font-size:1.15rem;margin-bottom:6px;">Activer Raphaël IA</h3>
+    <p style="color:rgba(255,255,255,.5);font-size:.76rem;text-align:center;margin-bottom:13px;line-height:1.5;">Entre ta clé API Anthropic pour activer l'assistant.</p>
+    <input id="apiKeyInput" type="password" placeholder="sk-ant-api03-..." style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:11px 13px;color:#fff;font-size:.83rem;outline:none;margin-bottom:6px;font-family:monospace;">
+    <p style="color:rgba(255,255,255,.3);font-size:.66rem;margin-bottom:12px;">👉 console.anthropic.com → API Keys</p>
+    <button onclick="const k=document.getElementById('apiKeyInput').value.trim();if(!k.startsWith('sk-')){document.getElementById('apiKeyInput').style.borderColor='var(--red)';return;}setApiKey(k);document.getElementById('apiModal').remove();toast('✅ Raphaël activé !');if(window._apiCb)window._apiCb();" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--orange));border:none;border-radius:11px;padding:12px;color:#fff;font-family:'Fredoka One',cursive;font-size:.95rem;cursor:pointer;margin-bottom:6px;">✅ Activer</button>
+    <button onclick="document.getElementById('apiModal').remove();" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:10px;color:rgba(255,255,255,.45);font-family:'Fredoka One',cursive;font-size:.83rem;cursor:pointer;">Annuler</button>
+  </div>`;
+  window._apiCb=onSuccess||null;
+  document.body.appendChild(m);
+  setTimeout(()=>document.getElementById("apiKeyInput")?.focus(),100);
+}
+
 async function callAI(messages,system,onDone,onError){
   if(!navigator.onLine){
     onDone("Je suis hors ligne 😅 Les aventures et quiz fonctionnent sans internet ! 🌟");
     return;
   }
+  let key=getApiKey();
+  if(!key){showApiSetup(()=>callAI(messages,system,onDone,onError));return;}
   try{
-    const r=await fetch('/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages,system})
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":key,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true"
+      },
+      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1024,system:system||"",messages})
     });
     if(r.status===401){
-      onDone("Connecte-toi d'abord pour parler avec Raphaël ! 😊");
-      return;
-    }
-    if(r.status===503){
-      onDone("Je suis en cours de configuration. Reviens bientôt ! 😊");
+      localStorage.removeItem("ecodime_api_key");
+      showApiSetup(()=>callAI(messages,system,onDone,onError));
       return;
     }
     const d=await r.json();
-    if(d.error){onError&&onError(d.error);return;}
-    onDone(d.text||"");
+    onDone(d.content?.[0]?.text||"");
   }catch(e){
-    onDone("Erreur de connexion 😅 Vérifie ta connexion internet !");
+    onDone("Erreur de connexion 😅 Vérifie ta connexion !");
   }
 }
 
@@ -1869,31 +1912,62 @@ async function saveQuickProfile(){
   const eglise=(document.getElementById("egliseInp")?.value||"").trim();
   
   try{
-    const r=await fetch('/api/register',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prenom,nom,pays,ville,eglise,avatar:selectedAvatar})
-    });
-    const d=await r.json();
-    if(!d.success){
-      toast("❌ "+d.message);
-      if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
-      return;
+    // Attendre Firebase
+    if(!window.fbDB){ await waitForFirebase(); }
+    
+    // Vérifier doublon
+    const existing = await window.fbGet("users");
+    if(existing){
+      const found = Object.values(existing).find(u=>
+        u.prenom?.toLowerCase()===prenom.toLowerCase() &&
+        (u.nom||"").toLowerCase()===(nom||"").toLowerCase()
+      );
+      if(found){
+        toast("❌ Ce nom existe déjà ! Utilise ton prénom pour te connecter.");
+        if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
+        return;
+      }
     }
-    _currentUser=d.user;
-    _currentUser.avatar=selectedAvatar;
-    xp=0;coins=0;
+    
+    const id = "u"+Date.now();
+    const newUser = {
+      id, prenom, nom, pays, ville, eglise,
+      avatar: selectedAvatar||"😇",
+      xp:0, coins:100, storiesDone:[], quizDone:0,
+      unlockedAvatars:[],
+      registeredAt: new Date().toISOString(),
+      lastActive: new Date().toISOString()
+    };
+    
+    // Sauvegarder dans Firebase
+    await window.fbSet("users/"+id, newUser);
+    
+    // Sauvegarder session locale
+    localStorage.setItem("ecodime_uid", id);
+    localStorage.setItem("ecodime_user", JSON.stringify(newUser));
+    
+    _currentUser = newUser;
+    xp=0; coins=100;
     initHomeProfile();
     document.getElementById("mainNav").style.display="flex";
     document.getElementById("nameModal")?.remove();
-    showScreen("homeScreen",0);renderStories();
-    // Sauvegarder sur Firebase
-    saveToFirebase(d.user);
-    toast("🎉 Bienvenue "+prenom+" ! Bonne aventure !");
+    showScreen("homeScreen",0); renderStories();
+    toast("🎉 Bienvenue "+prenom+" ! Tu as 100 🪙 de départ !");
+    
   }catch(e){
-    toast("❌ Erreur serveur. Réessaie !");
+    console.error(e);
+    toast("❌ Erreur. Vérifie ta connexion !");
     if(btn){ btn.disabled=false; btn.innerHTML="🚀 C'est parti !"; }
   }
+}
+
+// Attendre que Firebase soit prêt
+function waitForFirebase(){
+  return new Promise(resolve=>{
+    if(window.firebaseReady){ resolve(); return; }
+    document.addEventListener('firebase-ready', ()=>resolve(), {once:true});
+    setTimeout(resolve, 3000); // timeout 3s
+  });
 }
 
 // Mettre à jour l'avatar dans le profil
