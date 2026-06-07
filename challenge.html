@@ -311,7 +311,7 @@ setTimeout(async()=>{
   const saved=localStorage.getItem("ecodim_uid");
   if(saved){
     const data=await dbGet("users/"+saved);
-    if(data){ USER={uid:saved,...data}; await dbSet("users/"+saved+"/online",true); goMain(); checkBonus(); return; }
+    if(data){ USER={uid:saved,...data}; await dbSet("users/"+saved+"/online",true); setupPresence(saved); goMain(); checkBonus(); return; }
   }
   showAuth("register");
 },2200);
@@ -399,6 +399,7 @@ window.doRegister=async function(){
   const uid=Date.now()+"_"+name.replace(/\s+/g,"").toLowerCase().slice(0,10);
   const data={name,church,city,photo:_regPhoto||null,pin,points:20,wins:0,losses:0,online:true,createdAt:Date.now()};
   await dbSet("users/"+uid,data);
+  setupPresence(uid);
   localStorage.setItem("ecodim_uid",uid);
   USER={uid,...data}; _regPhoto=null;
   goMain();
@@ -416,6 +417,8 @@ window.doLogin=async function(){
   const [uid,udata]=entry;
   localStorage.setItem("ecodim_uid",uid);
   await dbSet("users/"+uid+"/online",true);
+  // Marquer offline automatiquement si déconnecté
+  setupPresence(uid);
   USER={uid,...udata};
   goMain();
   checkBonus();
@@ -550,7 +553,87 @@ window.sendChall=async function(){
   toast("Défi envoyé à "+_selPlayer.name+" ⚔️","#f0a500");
 };
 
-// ── Listen online ─────────────────────────────────────────
+// ── Présence en ligne (onDisconnect) ──────────────────────
+function setupPresence(uid){
+  // Utiliser .info/connected de Firebase pour détecter déconnexion
+  const db = firebase.database();
+  const connRef = db.ref(".info/connected");
+  const userOnlineRef = db.ref("users/"+uid+"/online");
+  
+  connRef.on("value", snap => {
+    if(snap.val() === true){
+      // Quand connecté, marquer online
+      userOnlineRef.set(true);
+      // Quand déconnecté, marquer offline automatiquement
+      userOnlineRef.onDisconnect().set(false);
+    }
+  });
+  
+  // Aussi marquer offline si page fermée
+  window.addEventListener("beforeunload", ()=>{
+    userOnlineRef.set(false);
+  });
+  
+  window.addEventListener("pagehide", ()=>{
+    userOnlineRef.set(false);
+  });
+}
+
+// ── Modifier mes renseignements ────────────────────────────
+window.showEditProfile = function(){
+  const modal = document.createElement("div");
+  modal.id = "editModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  modal.innerHTML = `
+    <div style="background:#0d1526;border:1px solid #182038;border-radius:18px;padding:22px 18px;width:100%;max-width:360px;">
+      <div style="font-family:'Cinzel Decorative',cursive;color:#f0a500;font-size:1rem;margin-bottom:14px;text-align:center;">✏️ Modifier mon profil</div>
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Prénom & Nom</label>
+      <input id="editName" value="${USER.name||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Église</label>
+      <input id="editChurch" value="${USER.church||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Ville</label>
+      <input id="editCity" value="${USER.city||''}" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:10px;">
+      
+      <label style="color:#556080;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Nouveau code PIN (optionnel)</label>
+      <input id="editPin" type="password" placeholder="Laisser vide pour garder l'ancien" maxlength="4" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:10px 13px;color:#fff;font-size:.9rem;outline:none;margin-bottom:14px;">
+      
+      <button onclick="saveEditProfile()" style="width:100%;background:#f0a500;border:none;border-radius:10px;padding:12px;color:#050810;font-weight:800;font-size:.95rem;cursor:pointer;margin-bottom:8px;">💾 Sauvegarder</button>
+      <button onclick="document.getElementById('editModal').remove()" style="width:100%;background:#182038;border:1px solid #2979ff44;border-radius:10px;padding:11px;color:#556080;font-size:.88rem;cursor:pointer;">Annuler</button>
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+window.saveEditProfile = async function(){
+  const name = document.getElementById("editName").value.trim();
+  const church = document.getElementById("editChurch").value.trim();
+  const city = document.getElementById("editCity").value.trim();
+  const newPin = document.getElementById("editPin").value.trim();
+  
+  if(!name){ alert("Le nom est obligatoire !"); return; }
+  
+  const updates = { name, church, city };
+  if(newPin && newPin.length === 4 && /^\d{4}$/.test(newPin)){
+    updates.pin = newPin;
+  }
+  
+  await dbSet("users/"+USER.uid+"/name", name);
+  await dbSet("users/"+USER.uid+"/church", church);
+  await dbSet("users/"+USER.uid+"/city", city);
+  if(updates.pin) await dbSet("users/"+USER.uid+"/pin", updates.pin);
+  
+  USER.name = name;
+  USER.church = church;
+  USER.city = city;
+  
+  document.getElementById("editModal").remove();
+  renderProfile();
+  toast("✅ Profil mis à jour !", "#00e676");
+};
+
+// ── Listen online ───────────────────────────────────────── ─────────────────────────────────────────
 function listenOnline(){
   dbOn("users",data=>{
     if(!data) return;
@@ -645,7 +728,10 @@ function renderProfile(){
         <button onclick="el('profile-photo-inp').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:#f0a500;border:2px solid #050810;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px">✏️</button>
         <input id="profile-photo-inp" type="file" accept="image/*" style="display:none" onchange="changePhoto(this)"/>
       </div>
-      <div style="font-weight:800;font-size:20px">${USER.name}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <div style="font-weight:800;font-size:20px">${USER.name}</div>
+        <button onclick="showEditProfile()" style="background:rgba(41,121,255,.15);border:1px solid rgba(41,121,255,.3);border-radius:8px;padding:4px 9px;color:#2979ff;font-size:.72rem;cursor:pointer;">✏️ Modifier</button>
+      </div>
       <div style="font-size:13px;color:#556080">${USER.church} · ${USER.city}</div>
       <div class="pbig" style="margin:12px 0 6px">${USER.points}</div>
       <span class="bdg" style="background:rgba(240,165,0,.12);color:#f0a500;border:1px solid rgba(240,165,0,.2)">${lvl.icon} ${lvl.name}</span>
