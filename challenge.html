@@ -311,8 +311,41 @@ showSplash();
 setTimeout(async()=>{
   const saved=localStorage.getItem("ecodim_uid");
   if(saved){
-    const data=await dbGet("users/"+saved);
-    if(data){ USER={uid:saved,...data}; await dbSet("users/"+saved+"/online",true); goMain(); checkBonus(); return; }
+    // Essayer de charger depuis Firebase
+    let data=await dbGet("users/"+saved);
+    
+    // Si pas dans Firebase, essayer de récupérer depuis localStorage Ecodime
+    if(!data){
+      const localUser = localStorage.getItem("ecodime_user");
+      if(localUser){
+        try{
+          const u = JSON.parse(localUser);
+          // Créer le profil dans Firebase depuis les données locales
+          data = {
+            name: (u.prenom||"Joueur") + (u.nom?" "+u.nom:""),
+            church: u.eglise||"",
+            city: u.ville||"",
+            points: u.xp||0,
+            wins: 0,
+            losses: 0,
+            online: false,
+            photo: null,
+            pin: "0000",
+            registeredAt: u.registeredAt||new Date().toISOString()
+          };
+          await dbSet("users/"+saved, data);
+          toast("✅ Profil synchronisé !","#00e676");
+        }catch(e){ data=null; }
+      }
+    }
+    
+    if(data){ 
+      USER={uid:saved,...data}; 
+      await setupPresence(saved);
+      goMain(); 
+      checkBonus(); 
+      return; 
+    }
   }
   showAuth("register");
 },2200);
