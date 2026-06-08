@@ -198,13 +198,14 @@ import { getDatabase, ref, get, set, update, push, onValue, off, runTransaction 
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const FB = {
-  apiKey:"AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
-  authDomain:"ecodim-jmt.firebaseapp.com",
-  databaseURL:"https://ecodim-jmt-default-rtdb.firebaseio.com",
-  projectId:"ecodim-jmt",
-  storageBucket:"ecodim-jmt.firebasestorage.app",
-  messagingSenderId:"393215031510",
-  appId:"1:393215031510:web:71bf73b0fae054de8ff177"
+  apiKey:"AIzaSyB8-Qsl79BpvWXr7upkV3GiKPWIlaBiDhQ",
+  authDomain:"ecodim-challenge.firebaseapp.com",
+  databaseURL:"https://ecodim-challenge-default-rtdb.firebaseio.com",
+  projectId:"ecodim-challenge",
+  storageBucket:"ecodim-challenge.firebasestorage.app",
+  messagingSenderId:"877902501456",
+  appId:"1:877902501456:web:043fc066a3ee42b8bee355",
+  measurementId:"G-YW1J208WXN"
 };
 const app = initializeApp(FB);
 const db  = getDatabase(app);
@@ -469,7 +470,12 @@ let _selPlayer=null, _stake=5;
 function renderLobby(){
   const lvl=getLevel(USER.points);
   const rows=_onlinePlayers.length===0
-    ? `<div class="card" style="text-align:center;padding:24px;color:#556080">Aucun joueur en ligne 😔<br/><span style="font-size:12px;display:block;margin-top:4px">Partage l'app avec tes amis !</span></div>`
+    ? `<div class="card" style="text-align:center;padding:24px;color:#556080">
+      <div style="font-size:32px;margin-bottom:8px">🌍</div>
+      <div style="font-weight:700;margin-bottom:4px">Aucun joueur en ligne</div>
+      <div style="font-size:12px;margin-top:4px">Partage l'app avec tes amis !</div>
+      <div style="font-size:11px;color:#2979ff;margin-top:8px" class="pulse">● Mise à jour en temps réel</div>
+    </div>`
     : _onlinePlayers.map(p=>{
         const pl=getLevel(p.points);
         return `<div class="prow" onclick="openChallModal('${p.uid}','${p.name.replace(/'/g,"\\'")}','${p.points}','${(p.church||"").replace(/'/g,"\\'")}','${(p.city||"").replace(/'/g,"\\'")}',${p.wins||0},${p.losses||0},'${p.photo||""}')">
@@ -542,13 +548,36 @@ window.closeModal=function(){
 };
 window.sendChall=async function(){
   if(_stake>USER.points){toast("Points insuffisants","#ff1744");return;}
-  await dbPush("challenges",{
+  const challRef = await dbPush("challenges",{
     from:USER.uid,fromName:USER.name,fromPhoto:USER.photo||null,fromPts:USER.points,
-    to:_selPlayer.uid,toName:_selPlayer.name,stake:_stake,status:"pending",createdAt:Date.now()
+    to:_selPlayer.uid,toName:_selPlayer.name,toPhoto:_selPlayer.photo||null,toPts:_selPlayer.points,
+    stake:_stake,status:"pending",createdAt:Date.now()
   });
+  const challId = challRef.key;
   closeModal();
   toast("Défi envoyé à "+_selPlayer.name+" ⚔️","#f0a500");
+  
+  // L'envoyeur écoute l'acceptation de son défi
+  const opp = {uid:_selPlayer.uid,name:_selPlayer.name,photo:_selPlayer.photo||null,points:_selPlayer.points};
+  const stake = _stake;
+  listenMyChallenge(challId, opp, stake);
 };
+
+// Écouter si mon défi envoyé est accepté
+function listenMyChallenge(challId, opp, stake){
+  dbOn("challenges/"+challId, data=>{
+    if(!data) return;
+    if(data.status==="accepted"){
+      dbOff("challenges/"+challId);
+      toast(opp.name+" a accepté ! Le match commence ! ⚔️","#00e676");
+      startMatch(opp, stake, challId);
+    } else if(data.status==="declined"){
+      dbOff("challenges/"+challId);
+      toast(opp.name+" a refusé le défi 😔","#ff1744");
+    }
+  });
+}
+
 
 // ── Listen online ─────────────────────────────────────────
 function listenOnline(){
@@ -566,11 +595,16 @@ function listenOnline(){
 function listenChallenges(){
   dbOn("challenges",data=>{
     if(!data) return;
+    // Si déjà en match, ignorer
+    if(MATCH) return;
     Object.entries(data).forEach(([key,c])=>{
+      // Défi reçu en attente
       if(c.to===USER.uid&&c.status==="pending"&&(!PENDING||PENDING.key!==key)){
+        // Vérifier que ce n'est pas un vieux défi (>2min)
+        if(Date.now()-c.createdAt > 120000) return;
         PENDING={...c,key};
-        el("cnotif-name").textContent=c.fromName;
-        el("cnotif-info").textContent="t'a défié · mise : "+c.stake+" pts";
+        el("cnotif-name").textContent=c.fromName+" ⚔️";
+        el("cnotif-info").textContent="t'a défié · mise : "+c.stake+" pts 🪙";
         el("cnotif").style.display="block";
       }
     });
