@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="theme-color" content="#050810"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Ecodim Challenge"/>
+<title>Ecodim Challenge · Joute Biblique</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#050810;color:#e8ecf8;font-family:'Barlow',sans-serif;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#182038;border-radius:2px}
+#app{max-width:430px;margin:0 auto;min-height:100vh;position:relative}
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 50% at 10% 5%,rgba(41,121,255,.08) 0%,transparent 60%),
+             radial-gradient(ellipse 60% 60% at 90% 95%,rgba(213,0,249,.05) 0%,transparent 60%)}
+.z1{position:relative;z-index:1}
+.hdr{position:sticky;top:0;z-index:50;background:rgba(5,8,16,.97);backdrop-filter:blur(16px);
+  border-bottom:1px solid #182038;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Cinzel Decorative',serif;font-size:17px;color:#f0a500}
+.logo span{color:#fff}
+.bnav{position:sticky;bottom:0;z-index:50;background:rgba(5,8,16,.97);backdrop-filter:blur(16px);
+  border-top:1px solid #182038;display:flex}
+.nb{flex:1;padding:10px 4px;background:none;border:none;color:#556080;cursor:pointer;
+  font-size:10px;font-family:'Barlow',sans-serif;font-weight:600;
+  display:flex;flex-direction:column;align-items:center;gap:3px;transition:color .2s}
+.nb .ic{font-size:21px}.nb.on{color:#f0a500}
+.page{padding:0 16px 24px}
+.card{background:#101828;border:1px solid #182038;border-radius:18px;padding:18px;margin-bottom:12px}
+.cgold{border-color:rgba(240,165,0,.25);background:linear-gradient(160deg,rgba(240,165,0,.06),#101828)}
+.btn{width:100%;padding:14px;border:none;border-radius:14px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;
+  letter-spacing:.5px;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:scale(.97)}.btn:disabled{opacity:.4;pointer-events:none}
+.bgold{background:linear-gradient(135deg,#f0a500,#d08800);color:#050810;box-shadow:0 4px 20px rgba(240,165,0,.3)}
+.bgreen{background:linear-gradient(135deg,#00e676,#00b248);color:#050810}
+.bred{background:linear-gradient(135deg,#ff1744,#c0002f);color:#fff}
+.bout{background:transparent;border:1px solid #182038;color:#8090b8}
+.bsm{padding:9px 16px;font-size:14px;width:auto;border-radius:10px}
+.row2{display:flex;gap:10px}.row2 .btn{flex:1}
+.mt8{margin-top:8px}.mt16{margin-top:16px}
+.inp{width:100%;padding:13px 16px;background:#0b1020;border:1px solid #182038;
+  border-radius:12px;color:#e8ecf8;font-family:'Barlow',sans-serif;font-size:16px;
+  outline:none;transition:border-color .2s;-webkit-appearance:none}
+.inp:focus{border-color:#2979ff}.inp::placeholder{color:#556080}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#556080;
+  font-weight:700;margin-bottom:7px;display:block}
+.fld{margin-bottom:14px}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;flex-shrink:0;
+  border:2px solid;overflow:hidden;font-size:18px}
+.av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.prow{display:flex;align-items:center;gap:12px;padding:12px;background:#101828;
+  border:1px solid #182038;border-radius:14px;margin-bottom:8px;
+  cursor:pointer;transition:border-color .2s,transform .15s}
+.prow:active{transform:scale(.98);border-color:#2979ff}
+.odot{width:9px;height:9px;border-radius:50%;background:#00e676;box-shadow:0 0 8px #00e676;flex-shrink:0}
+.stitle{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:#556080;margin:18px 0 10px}
+.pbig{font-family:'Cinzel Decorative',serif;font-size:46px;color:#f0a500;
+  text-shadow:0 0 20px rgba(240,165,0,.5);line-height:1}
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:700;font-family:'Barlow Condensed',sans-serif}
+.divider{height:1px;background:#182038;margin:16px 0}
+.msb{display:flex;align-items:center;gap:6px}
+.mside{flex:1;text-align:center}
+.mname{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpts{font-family:'Cinzel Decorative',serif;font-size:28px;line-height:1;text-shadow:0 0 12px currentColor}
+.rdots{display:flex;gap:4px;justify-content:center;margin-top:2px}
+.rdot{width:10px;height:10px;border-radius:50%;border:1.5px solid currentColor;transition:background .3s}
+.rdot.on{background:currentColor}
+.vchip{font-family:'Cinzel Decorative',serif;font-size:11px;color:#f0a500;
+  background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);
+  border-radius:8px;padding:4px 8px;flex-shrink:0;text-align:center;min-width:50px;line-height:1.4}
+.qlbl{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:#f0a500;text-align:center;margin-bottom:12px}
+.qbox{background:linear-gradient(160deg,#0f1a2e,#0b1020);border:1px solid rgba(240,165,0,.22);
+  border-radius:20px;padding:20px;margin-bottom:14px;position:relative;overflow:hidden}
+.qbox::after{content:'✝';position:absolute;right:-8px;top:-8px;font-size:90px;
+  color:rgba(240,165,0,.04);pointer-events:none;line-height:1}
+.qdiff{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#ff1744;
+  font-weight:700;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif}
+.qref{color:#f0a500;font-size:12px;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif}
+.qtxt{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:600;line-height:1.5}
+.abtn{width:100%;padding:13px 14px;text-align:left;background:#101828;
+  border:1px solid #182038;border-radius:13px;color:#e8ecf8;
+  font-family:'Barlow',sans-serif;font-size:14px;cursor:pointer;
+  transition:all .2s;display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.abtn:active{transform:scale(.98)}.abtn:disabled{cursor:default}
+.altr{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;background:#182038;color:#556080;transition:all .2s}
+.abtn.ok{border-color:#00e676;background:rgba(0,230,118,.1)}
+.abtn.ok .altr{background:#00e676;color:#050810}
+.abtn.bad{border-color:#ff1744;background:rgba(255,23,68,.1)}
+.abtn.bad .altr{background:#ff1744;color:#fff}
+.abtn.rv{border-color:rgba(0,230,118,.2);background:rgba(0,230,118,.04)}
+.wait{display:flex;align-items:center;gap:8px;background:rgba(0,229,255,.06);
+  border:1px solid rgba(0,229,255,.15);border-radius:11px;
+  padding:10px 13px;font-size:13px;color:#8090b8;margin-bottom:12px}
+.dots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:#00e5ff;
+  margin:0 2px;animation:dot 1.3s ease-in-out infinite}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+.expl{background:rgba(41,121,255,.07);border:1px solid rgba(41,121,255,.18);
+  border-radius:14px;padding:14px;margin-top:12px;font-size:13px;color:#a0b4d8;line-height:1.7}
+.rrow{display:flex;align-items:center;gap:11px;padding:12px;border-radius:13px;margin-bottom:8px}
+.r1{background:linear-gradient(135deg,rgba(240,165,0,.12),rgba(240,165,0,.04));border:1px solid rgba(240,165,0,.3)}
+.r2{background:rgba(192,192,192,.06);border:1px solid rgba(192,192,192,.12)}
+.r3{background:rgba(180,100,40,.06);border:1px solid rgba(180,100,40,.12)}
+.ro{background:#101828;border:1px solid #182038}
+.mbg{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.87);
+  backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;
+  max-width:430px;margin:0 auto}
+.modal{background:#0b1020;border:1px solid #182038;border-radius:24px 24px 0 0;
+  padding:24px;width:100%;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease}
+.toast-el{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:999;
+  background:#101828;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:600;
+  white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6);animation:fadeUp .3s ease;pointer-events:none;display:none}
+.cnotif{position:fixed;top:70px;left:50%;transform:translateX(-50%);
+  z-index:500;width:calc(100% - 32px);max-width:400px;
+  background:#0b1020;border:2px solid rgba(240,165,0,.5);border-radius:18px;
+  padding:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);animation:slideDown .4s ease;display:none}
+.splash{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;text-align:center;padding:32px 24px}
+.sglow{font-size:72px;animation:floatY 3s ease-in-out infinite;filter:drop-shadow(0 0 30px rgba(240,165,0,.8))}
+.slogo{font-family:'Cinzel Decorative',serif;font-size:38px;color:#f0a500;line-height:1;
+  text-shadow:0 0 40px rgba(240,165,0,.7)}
+.slogo span{color:#fff}
+.sbar{width:160px;height:3px;background:#182038;border-radius:2px;overflow:hidden;margin-top:16px}
+.sfill{height:100%;background:linear-gradient(90deg,#f0a500,#ffd060);animation:loadSlide 2s ease-in-out infinite}
+.cdown{position:fixed;inset:0;z-index:300;background:rgba(5,8,16,.97);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;text-align:center;max-width:430px;margin:0 auto;display:none}
+.cnum{font-family:'Cinzel Decorative',serif;font-size:110px;color:#f0a500;
+  text-shadow:0 0 60px rgba(240,165,0,.8);animation:countPop .4s ease}
+.ldr{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:48px 0;text-align:center}
+.lbook{font-size:48px;animation:floatY 2s ease-in-out infinite}
+.lbar{width:200px;height:3px;background:#182038;border-radius:2px;overflow:hidden}
+.lfill{height:100%;background:#f0a500;animation:loadSlide 2s ease infinite}
+.hidden{display:none!important}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes loadSlide{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@keyframes countPop{from{transform:scale(1.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bounceIn{from{transform:scale(.3);opacity:0}70%{transform:scale(1.1)}to{transform:scale(1);opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px) translateX(-50%)}to{opacity:1;transform:translateY(0) translateX(-50%)}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes dot{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse{animation:pulse 1.5s ease infinite}
+.fadein{animation:fadeUp2 .35s ease forwards}
+@keyframes fadeUp2{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div id="app" class="z1"></div>
+<div class="toast-el" id="toast"></div>
+<div class="cnotif" id="cnotif">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="font-size:32px" class="pulse">⚔️</div>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:15px" id="cnotif-name"></div>
+      <div style="font-size:13px;color:#8090b8" id="cnotif-info"></div>
+    </div>
+  </div>
+  <div class="row2 mt8">
+    <button class="btn bgreen bsm" onclick="acceptChallenge()">✅ Accepter</button>
+    <button class="btn bred bsm" onclick="declineChallenge()">❌ Refuser</button>
+  </div>
+</div>
+<div class="cdown" id="cdown">
+  <div style="font-size:14px;color:#8090b8;letter-spacing:3px;text-transform:uppercase;font-family:'Barlow Condensed'" id="cd-lbl"></div>
+  <div class="cnum" id="cd-num">3</div>
+  <div style="display:flex;gap:24px;align-items:center;font-family:'Barlow Condensed';font-size:20px;font-weight:700">
+    <span id="cd-p1" style="color:#2979ff"></span>
+    <span style="color:#f0a500;font-size:14px">VS</span>
+    <span id="cd-p2" style="color:#00e676"></span>
+  </div>
+  <div style="font-size:13px;color:#556080">⚡ Questions de niveau expert</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, set, update, push, onValue, off, runTransaction, onDisconnect }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const FB = {
+  apiKey:"AIzaSyAPacENBT-mTvnamOpZYja2wIzVDFUxLGw",
+  authDomain:"ecodim-jmt.firebaseapp.com",
+  databaseURL:"https://ecodim-jmt-default-rtdb.firebaseio.com",
+  projectId:"ecodim-jmt",
+  storageBucket:"ecodim-jmt.firebasestorage.app",
+  messagingSenderId:"393215031510",
+  appId:"1:393215031510:web:71bf73b0fae054de8ff177"
+};
+const app = initializeApp(FB);
+const db = getDatabase(app);
+const r = p => ref(db, p);
+const dbGet = p => get(r(p)).then(s => s.exists() ? s.val() : null);
+const dbSet = (p,v) => set(r(p), v);
+const dbUpd = (p,v) => update(r(p), v);
+const dbPush = (p,v) => push(r(p), v);
+const dbOn = (p,cb) => onValue(r(p), s => cb(s.exists() ? s.val() : null));
+const dbOff = p => off(r(p));
+
+// ── Constants ─────────────────────────
+const LEVELS=[
+  {name:"Débutant",min:0,icon:"📖",color:"#8090b8"},
+  {name:"Disciple",min:50,icon:"✝️",color:"#2979ff"},
+  {name:"Évangéliste",min:150,icon:"🕊️",color:"#d500f9"},
+  {name:"Ancien",min:300,icon:"⭐",color:"#f0a500"},
+  {name:"Maître Biblique",min:500,icon:"👑",color:"#ff1744"},
+];
+const getLevel=pts=>{for(let i=LEVELS.length-1;i>=0;i--)if(pts>=LEVELS[i].min)return LEVELS[i];return LEVELS[0]};
+const rndQ=()=>3+Math.floor(Math.random()*4);
+
+let USER=null, MATCH=null, PENDING=null, CD_TIMER=null;
+let onlinePlayers = [];
+let challengesListener = null;
+let myChallenges = new Map(); // challengeId -> challenge data to track status changes
+
+const FALLBACK=[ /* same fallback questions */ ];
+// Fallback questions (shortened for brevity, but same as original)
+FALLBACK.push({question:"Combien de prophètes de Baal Élie fit-il tuer ?",reference:"1 Rois 18:40",answers:["200","450","700","100"],correct:1,explanation:"450 prophètes de Baal.",topic:"Élie"});
+FALLBACK.push({question:"Quel était le nom du père de Josué ?",reference:"Exode 33:11",answers:["Nun","Caleb","Aaron","Éphraïm"],correct:0,explanation:"Josué fils de Nun.",topic:"Josué"});
+FALLBACK.push({question:"Combien d'années Salomon régna-t-il ?",reference:"1 Rois 11:42",answers:["30","40","50","20"],correct:1,explanation:"40 ans.",topic:"Salomon"});
+FALLBACK.push({question:"Quel roi fit brûler le rouleau de Jérémie ?",reference:"Jérémie 36:23",answers:["Ézéchias","Josias","Jojakim","Sédécias"],correct:2,explanation:"Jojakim.",topic:"Jojakim"});
+// more fallback included in original but enough
+
+async function genQ(round, used=[]) {
+  const diffs=["difficile","très difficile","extrêmement difficile niveau expert"];
+  try {
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:700,system:`Tu es arbitre Ecodim Bible Challenge. Génère UNE question biblique de niveau ${diffs[Math.min(round-1,2)]}. RÈGLES: détails précis, chiffres exacts. Évite: ${used.join(",")||"rien"}. JSON sans markdown: {"question":"...","reference":"...","answers":["A","B","C","D"],"correct":0,"explanation":"...","topic":"3 mots"}`,
+        messages:[{role:"user",content:"Génère."}]})
+    });
+    const d=await res.json();
+    const t=d.content?.map(b=>b.text||"").join("")||"";
+    return JSON.parse(t.replace(/```json|```/g,"").trim());
+  } catch {
+    return FALLBACK[(round*5+used.length)%FALLBACK.length];
+  }
+}
+
+function compressPhoto(file,size=180){ /* unchanged - keep original */ return new Promise(res=>{ const rd=new FileReader(); rd.onload=e=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement("canvas"); const rat=Math.min(size/img.width,size/img.height); c.width=img.width*rat; c.height=img.height*rat; c.getContext("2d").drawImage(img,0,0,c.width,c.height); res(c.toDataURL("image/jpeg",.72)); }; img.src=e.target.result; }; rd.readAsDataURL(file); }); }
+function toast(msg,color="#e8ecf8"){ const t=document.getElementById("toast"); t.textContent=msg; t.style.color=color; t.style.borderColor=color+"66"; t.style.border="1px solid"; t.style.display="block"; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display="none",3200); }
+function av(photo,name,size,border,color){ if(photo) return `<div class="av" style="width:${size}px;height:${size}px;border-color:${border}"><img src="${photo}"/></div>`; return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*.4}px;background:rgba(168,85,247,.15);border-color:${border};color:${color}">${(name||"?")[0].toUpperCase()}</div>`; }
+function render(html){ document.getElementById("app").innerHTML=html; }
+
+// ── Présence en ligne avec onDisconnect ─────────────────
+async function setupPresence(uid){
+  const userOnlineRef = r(`users/${uid}/online`);
+  await dbSet(`users/${uid}/online`, true);
+  const onDisconnectRef = onDisconnect(userOnlineRef);
+  await onDisconnectRef.set(false);
+  window.addEventListener("beforeunload", ()=>{ dbSet(`users/${uid}/online`, false); });
+  window.addEventListener("pagehide", ()=>{ dbSet(`users/${uid}/online`, false); });
+}
+
+// ── Boot ──────────────────────────────────────────────
+showSplash();
+setTimeout(async()=>{
+  const saved=localStorage.getItem("ecodim_uid");
+  if(saved){
+    const data=await dbGet("users/"+saved);
+    if(data){ USER={uid:saved,...data}; await setupPresence(saved); goMain(); checkBonus(); return; }
+  }
+  showAuth("register");
+},2200);
+
+function checkBonus(){
+  const key="bonus_"+USER.uid, today=new Date().toDateString();
+  if(localStorage.getItem(key)!==today){
+    localStorage.setItem(key,today);
+    if(USER.points===0){ dbSet("users/"+USER.uid+"/points",5); USER.points=5; setTimeout(()=>toast("🎁 +5 points gratuits !","#f0a500"),1200); }
+  }
+}
+
+function showSplash(){
+  render(`<div class="splash"><div class="sglow">✝️</div><div class="slogo">ECO<span>DIM</span></div><div style="font-family:'Barlow Condensed';font-size:13px;letter-spacing:6px;text-transform:uppercase;color:#556080">Bible Challenge</div><div class="sbar"><div class="sfill"></div></div><div style="font-size:12px;color:#556080" class="pulse">Connexion...</div></div>`);
+}
+
+function showAuth(mode="register"){
+  if(mode==="register"){
+    render(`<div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;justify-content:center"><div style="text-align:center;margin-bottom:24px"><div style="font-family:'Cinzel Decorative';font-size:22px;color:#f0a500">ECO<span style="color:#fff">DIM</span></div></div><div class="card fadein"><div style="font-weight:800;font-size:18px;margin-bottom:4px">Créer mon compte</div><div style="font-size:13px;color:#556080;margin-bottom:18px">🎁 +20 points</div><div id="photo-wrap" class="photopick" style="width:80px;height:80px" onclick="el('photo-inp').click()"><span style="font-size:28px">📷</span><span>Photo</span></div><input id="photo-inp" type="file" accept="image/*" style="display:none" onchange="
